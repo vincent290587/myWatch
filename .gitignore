@@ -1,0 +1,6 @@
+_build/
+_build_nRF51/
+_build_nRF52/
+*.o
+*.a
+*.d
