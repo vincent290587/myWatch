@@ -40,7 +40,7 @@ MMA8451_n0m1::MMA8451_n0m1() : I2C_Device () {
 	off_y = 0;
 	off_z = 0;
 
-	debug = true;
+	debug = false;
 }
 
 /***********************************************************
@@ -89,13 +89,13 @@ bool MMA8451_n0m1::init() {
 bool MMA8451_n0m1::init_bare() {
 
 	uint8_t statusCheck;
-#if 0
+
 	// setup datarate
 	wireReadDataByte(REG_CTRL_REG1, statusCheck);
-	statusCheck &= ~(0x38);
-	statusCheck |= 0b100000; // 50 Hz datarate
+	statusCheck = 0x0C;
 	wireWriteDataByte(REG_CTRL_REG1, statusCheck);
 
+#if 0
 	// setup auto-sleep
 	wireWriteDataByte(REG_ASLP_COUNT, 0x40);
 
@@ -132,14 +132,14 @@ bool MMA8451_n0m1::init_bare() {
 	// setup high-level functions
 
 	// acc values
-	dataMode(true, 2);
+	dataMode(true, 8);
 
 #if 1
-	setODR(ODR_100Hz); //Set device in ODR rate
+	//setODR(ODR_400Hz); //Set device in ODR rate
 	// INT1
 	pulseMode(true,true,true,false);
 	// INT2
-	//shakeMode(32,true,true,true,true);
+	shakeMode(10,true,true,true,true);
 #endif
 
 	return true;
@@ -180,7 +180,8 @@ void MMA8451_n0m1::clearInterrupt() {
 
 	if (debug)
 		serial.print("(clearInterrupt) ");
-	if (pulseISRFlag || shakeISRFlag) {
+	// TODO check that
+	if (pulseISRFlag || shakeISRFlag || 1) {
 		if (debug)
 			serial.println(" ISRFlag ON");
 
@@ -201,12 +202,15 @@ void MMA8451_n0m1::clearInterrupt() {
 			wireReadDataByte(REG_TRANSIENT_SRC, srcTrans);
 
 			if ((srcTrans & 0x02) == 0x02) {
+				serial.println("Shake on X"); // tabbing here for visibility
 				shakeAxisX_ = true;
 			}
 			if ((srcTrans & 0x08) == 0x08) {
+				serial.println("Shake on Y"); // tabbing here for visibility
 				shakeAxisY_ = true;
 			}
 			if ((srcTrans & 0x20) == 0x20) {
+				serial.println("Shake on Z"); // tabbing here for visibility
 				shakeAxisZ_ = true;
 			}
 		}
@@ -459,7 +463,7 @@ boolean enableZ, boolean enableINT2, int arduinoINTPin) {
 	boolean error = false;
 	byte statusCheck;
 
-	wireWriteDataByte(REG_CTRL_REG1, 0x18); //Set device in 100 Hz ODR, Standby
+	//wireWriteDataByte(REG_CTRL_REG1, 0x18); //Set device in 100 Hz ODR, Standby
 
 	byte xyzCfg = 0x80; //latch always enabled
 	xyzCfg |= 0x40; //Motion not free fall
@@ -548,9 +552,10 @@ boolean enableZ, boolean enableINT2) {
 	if (statusCheck != (uint8_t)(threshold))
 		error = true;
 
-	wireWriteDataByte(REG_TRANSIENT_COUNT, 0x05); //Set the Debounce Counter for 50 ms
+	//Set the Debounce Counter for 150 ms
+	wireWriteDataByte(REG_TRANSIENT_COUNT, 0x3C);
 	wireReadDataByte(REG_TRANSIENT_COUNT, statusCheck);
-	if (statusCheck != 0x05)
+	if (statusCheck != 0x3C)
 		error = true;
 
 	//Enable Transient Detection Interrupt in the System
@@ -597,30 +602,34 @@ void MMA8451_n0m1::pulseMode(boolean enableX, boolean enableY,
 	boolean error = false;
 	byte statusCheck;
 
-	wireWriteDataByte(REG_PULSE_CFG, 0x7F);  // 1. enable single/double taps on all axes
-	// writeRegister(PULSE_CFS, 0x55);  // 1. single taps only on all axes
-	// writeRegister(PULSE_CFS, 0x6A);  // 1. double taps only on all axes
+	// HP enabled + LP enabled
+	wireWriteDataByte(REG_HP_FILTER_CUTOFF, 0b10000);
 
-	// 2. x thresh at 0.25g, multiply the value by 0.0625g/LSB to get the threshold
-	wireWriteDataByte(REG_PULSE_THSX, 0x10);
+	// TODO
+	wireWriteDataByte(REG_PULSE_CFG, 0x3F);  // 1. enable single/double taps on all axes
+	//wireWriteDataByte(REG_PULSE_CFG, 0x15);  // 1. single taps only on all axes
+	// wireWriteDataByte(REG_PULSE_CFG, 0x6A);  // 1. double taps only on all axes
 
-	// 2. y thresh at 0.25g, multiply the value by 0.0625g/LSB to get the threshold
-	wireWriteDataByte(REG_PULSE_THSY, 0x10);
+	// 2. x thresh at 4g, multiply the value by 0.0625g/LSB to get the threshold
+	wireWriteDataByte(REG_PULSE_THSX, 0x30);
 
-	// 2. z thresh at 0.25g, multiply the value by 0.0625g/LSB to get the threshold
-	wireWriteDataByte(REG_PULSE_THSZ, 0x10);
+	// 2. y thresh at 4g, multiply the value by 0.0625g/LSB to get the threshold
+	wireWriteDataByte(REG_PULSE_THSY, 0x30);
 
-	// 3. 150ms time limit at 100Hz odr, this is very dependent on data rate, see the app note
+	// 2. z thresh at 5g, multiply the value by 0.0625g/LSB to get the threshold
+	wireWriteDataByte(REG_PULSE_THSZ, 0x40);
+
+	// 3. 25ms time limit at 100Hz odr, this is very dependent on data rate, see the app note
 	// = 0.625ms(ODR=100,HighRes) * TMLT
-	wireWriteDataByte(REG_PULSE_TMLT, 0xF0);
+	wireWriteDataByte(REG_PULSE_TMLT, 0x0A);
 
-	// 4. 100ms 100Hz odr between taps min, this also depends on the data rate
+	// 4. 120ms between taps min, this also depends on the data rate
 	// = 1.25ms(ODR=100,HighRes) * LTCY
-	wireWriteDataByte(REG_PULSE_LTCY, 0x50);
+	wireWriteDataByte(REG_PULSE_LTCY, 0x14);
 
-	// 5. 300ms at 100 Hz between taps max
-	// = 1.25ms(ODR=100,HighRes) * LTCY
-	wireWriteDataByte(REG_PULSE_WIND, 0xF0);
+	// 5. 318ms at 100 Hz between taps max
+	// = 1.25ms(ODR=100,HighRes) * WIND
+	wireWriteDataByte(REG_PULSE_WIND, 0x5A);
 
 	// tap ints enabled
 	wireReadDataByte(REG_CTRL_REG4, statusCheck);
@@ -736,7 +745,7 @@ void MMA8451_n0m1::reset() {
 	uint32_t millis_ = millis();
 	//Reset device
 	wireWriteDataByte(REG_CTRL_REG2, 0x40);
-	delay(1);
+	delay(2);
 	uint8_t val = 0x40;
 // TODO check
 	while (val & 0x40 && (millis() - millis_ < 1000)) {

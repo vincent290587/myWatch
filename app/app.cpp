@@ -50,12 +50,12 @@ STC3100 stc;
 VEML6075 veml;
 WS2812B neopix(20);
 
-static void app_timeout_handler(nrf_timer_event_t event_type, void* p_context) {
-//static void app_timeout_handler(void* p_context) {
-
-	APP::pApp->bigTick = true;
-	APP::pApp->timekeeper.increment_100millis();
-}
+//static void app_timeout_handler(nrf_timer_event_t event_type, void* p_context) {
+////static void app_timeout_handler(void* p_context) {
+//
+//	APP::pApp->bigTick = true;
+//	APP::pApp->timekeeper.increment_100millis();
+//}
 
 static void dummy_timeout_handler(void* p_context) {
 	APP::pApp->bigTick = true;
@@ -72,7 +72,6 @@ void init_timers_millis() {
 	APP_ERROR_CHECK(ret);
 
 
-	//Configure TIMER_LED for generating simple light effect - leds on board will invert his state one after the other.
 //	uint32_t time_ticks, err_code;
 //	nrf_drv_timer_config_t timer_cfg = NRF_DRV_TIMER_DEFAULT_CONFIG;
 //
@@ -90,7 +89,7 @@ void init_timers_millis() {
 APP::APP() {
 	pApp = this;
 	bigTick = false;
-	_state = VERY_LOW_POWER;
+	_state = SPORT;
 }
 
 
@@ -125,7 +124,7 @@ void APP::init() {
 //	stc.init();
 
 	// accelero configuration
-	acc.init();
+//	acc.init();
 
 	// motion sensing init
 //	adps.init();
@@ -138,9 +137,9 @@ void APP::init() {
 //	veml.init();
 
 	// MAX30102 init
-//	spo_hrm.init();
+	spo_hrm.init();
 //	spo_hrm.max30102.shutDown();
-//	spo_hrm.start_measurement();
+	spo_hrm.start_measurement();
 }
 
 
@@ -149,58 +148,71 @@ void APP::run() {
 
 }
 
-void APP::run_very_low_power() {
+void APP::run_low_power() {
 
 	neopix.setColor(0xFF, 0, 0);
 
-	if (nbTicks == 3) {
-		// reset screen
-		vue.resetBuffer();
+	if (0) {
 
-		if (stc.isPresent(STC3100_ADDRESS)) {
-			stc.refresh();
-			vue.LowPowerScreen(stc.getCurrent(), acc.computeNorthDirection());
-		} else {
-			vue.LowPowerScreen(-1, acc.computeNorthDirection());
+		if (nbTicks == 1) {
+
+			NRF_LOG_INFO("Voltage: " NRF_LOG_FLOAT_MARKER "\r\n", NRF_LOG_FLOAT(stc.getVoltage()));
+			NRF_LOG_INFO("Temperature: " NRF_LOG_FLOAT_MARKER "\r\n", NRF_LOG_FLOAT(stc.getTemperature()));
+			NRF_LOG_ERROR("Power consumption: " NRF_LOG_FLOAT_MARKER "\r\n", NRF_LOG_FLOAT(stc.getCurrent()));
 		}
+		else if (nbTicks == 2) {
 
-		// refresh screen
-		vue.refresh();
+			acc.update();
+			NRF_LOG_INFO("Xg: " NRF_LOG_FLOAT_MARKER "\r\n", NRF_LOG_FLOAT(acc.xg()));
+			NRF_LOG_INFO("Yg: " NRF_LOG_FLOAT_MARKER "\r\n", NRF_LOG_FLOAT(acc.yg()));
+			NRF_LOG_INFO("Zg: " NRF_LOG_FLOAT_MARKER "\r\n", NRF_LOG_FLOAT(acc.zg()));
 
-		NRF_LOG_INFO("Voltage: " NRF_LOG_FLOAT_MARKER "\r\n", NRF_LOG_FLOAT(stc.getVoltage()));
-		NRF_LOG_INFO("Temperature: " NRF_LOG_FLOAT_MARKER "\r\n", NRF_LOG_FLOAT(stc.getTemperature()));
-		NRF_LOG_ERROR("Power consumption: " NRF_LOG_FLOAT_MARKER "\r\n", NRF_LOG_FLOAT(stc.getCurrent()));
+			vue.LowPowerScreen(acc.computeNorthDirection());
+
+		}
+		else if (nbTicks == 3) {
+
+			veml.poll();
+			NRF_LOG_INFO("UVA: " NRF_LOG_FLOAT_MARKER "\r\n", NRF_LOG_FLOAT(veml.getUVA()));
+			NRF_LOG_INFO("UVB: " NRF_LOG_FLOAT_MARKER "\r\n", NRF_LOG_FLOAT(veml.getUVB()));
+
+		}
 	}
 
-	else if (nbTicks == 5) {
-		acc.update();
-		NRF_LOG_INFO("Xg: " NRF_LOG_FLOAT_MARKER "\r\n", NRF_LOG_FLOAT(acc.xg()));
-		NRF_LOG_INFO("Yg: " NRF_LOG_FLOAT_MARKER "\r\n", NRF_LOG_FLOAT(acc.yg()));
-		NRF_LOG_INFO("Zg: " NRF_LOG_FLOAT_MARKER "\r\n", NRF_LOG_FLOAT(acc.zg()));
-		NRF_LOG_INFO("North: " NRF_LOG_FLOAT_MARKER "\r\n", NRF_LOG_FLOAT(acc.computeNorthDirection()));
-	}
+	acc.update();
 
-	else if (nbTicks == 2) {
-		//veml.poll();
-		NRF_LOG_INFO("UVA: " NRF_LOG_FLOAT_MARKER "\r\n", NRF_LOG_FLOAT(veml.getUVA()));
-		NRF_LOG_INFO("UVB: " NRF_LOG_FLOAT_MARKER "\r\n", NRF_LOG_FLOAT(veml.getUVB()));
+	// update neopixel
+	neopix.show();
+
+}
+
+void APP::run_very_low_power() {
+
+}
+
+void APP::run_sport() {
+
+	if (nbTicks%2 == 1) spo_hrm.run();
+
+	if (nbTicks == 1) {
+
+		//NRF_LOG_INFO("Voltage: " NRF_LOG_FLOAT_MARKER "\r\n", NRF_LOG_FLOAT(stc.getVoltage()));
+		//NRF_LOG_INFO("Temperature: " NRF_LOG_FLOAT_MARKER "\r\n", NRF_LOG_FLOAT(stc.getTemperature()));
+		//NRF_LOG_ERROR("Power consumption: " NRF_LOG_FLOAT_MARKER "\r\n", NRF_LOG_FLOAT(stc.getCurrent()));
 
 		if (digitalRead(INT_PIN_MAX) == LOW) {
 			NRF_LOG_WARNING("Pin MAX low\r\n");
 		} else {
 			NRF_LOG_WARNING("Pin MAX high\r\n");
 		}
-		//NRF_LOG_WARNING("MAX %d samples available\r\n", spo_hrm.max30102.getFIFOStored());
+
+	} else if (nbTicks == 5) {
+
+		spo_hrm.refreshCalculation();
+		vue.SPO2Screen(&spo_hrm);
+
 	}
 
-	// update neopixel
-	neopix.show();
-
-}
-void APP::run_low_power() {
-
-}
-void APP::run_sport() {
 
 }
 
@@ -215,29 +227,41 @@ void APP::sm_run() {
 
 		// tick increase
 		nbTicks++;
+		nbTicks = nbTicks % 10;
 
-		// USER STATE MACHINE
-		switch (_state) {
-		case VERY_LOW_POWER:
-			this->run_very_low_power();
-			break;
-		case LOW_POWER:
-			this->run_low_power();
-			break;
-		case SPORT:
-			this->run_sport();
-			break;
+		if (!nbTicks) {
+
+			// update current
+			if (stc.isPresent(STC3100_ADDRESS)) {
+				stc.refresh();
+				vue.setCurrent(stc.getCurrent());
+			} else {
+				vue.setCurrent(-1);
+			}
+
+			// force display all
+			vue.refresh();
+
+			// reset screen
+			vue.resetBuffer();
+		} else {
+			// USER STATE MACHINE
+			switch (_state) {
+			case VERY_LOW_POWER:
+				this->run_very_low_power();
+				break;
+			case LOW_POWER:
+				this->run_low_power();
+				break;
+			case SPORT:
+				this->run_sport();
+				break;
+			}
 		}
-
-		// time management
-		if (nbTicks >= 10) {
-			nbTicks = 0;
-		}
-
 	}
 	// functions needed to run continuously
 	//runADPS();
-	//spo_hrm.run();
+
 }
 
 void APP::runADPS() {

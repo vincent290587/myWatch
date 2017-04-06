@@ -10,6 +10,7 @@
 
 #include "TimeKeeper.h"
 #include "LS013B7DH03.h"
+#include "SPO2HRM.h"
 #include "app.h"
 
 #define VUE_SPI_SS_PIN 4
@@ -20,11 +21,14 @@ public:
 	Vue();
 
 	void setTK(TimeKeeper *TimeKeeper);
+	void setCurrent(float current) {_current = current;}
 
-	void LowPowerScreen(float, float);
+	void LowPowerScreen(float);
+	void SPO2Screen(SPO2HRM*);
 
 private:
 	TimeKeeper* _timekeeper;
+	float _current;
 };
 
 

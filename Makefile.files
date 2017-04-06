@@ -21,8 +21,9 @@ SRC_FILES += \
   $(PROJ_DIR)/libraries/TimeKeeper.cpp \
   $(PROJ_DIR)/libraries/VEML6075.cpp \
   $(PROJ_DIR)/libraries/MAX30102/algorithm.cpp \
-  $(PROJ_DIR)/libraries/MAX30102/FFT.cpp \
+  $(PROJ_DIR)/libraries/MAX30102/HRFilter.cpp \
   $(PROJ_DIR)/libraries/MAX30102/MAX30102.cpp \
+  $(PROJ_DIR)/libraries/rbuffer/RingBuffer.cpp \
   $(PROJ_DIR)/vue/mathutils.cpp \
   $(PROJ_DIR)/vue/Menu.cpp \
   $(PROJ_DIR)/vue/Vue.cpp \
@@ -92,6 +93,7 @@ INC_FOLDERS += \
   $(PROJ_DIR)/app \
   $(PROJ_DIR)/libraries \
   $(PROJ_DIR)/libraries/MAX30102 \
+  $(PROJ_DIR)/libraries/rbuffer \
   $(PROJ_DIR)/drivers \
   $(PROJ_DIR)/vue \
   $(SDK_ROOT)/components \

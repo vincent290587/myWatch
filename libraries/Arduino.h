@@ -69,6 +69,12 @@ void detachInterrupt(nrf_drv_gpiote_pin_t pin_);
 
 float compute2Complement(uint8_t msb, uint8_t lsb);
 
+int percentageBatt (float tensionValue);
+
+float regFen(float val_, float b1_i, float b1_f, float b2_i, float b2_f);
+
+float regFenLim(float val_, float b1_i, float b1_f, float b2_i, float b2_f);
+
 #ifdef __cplusplus
 }
 #endif

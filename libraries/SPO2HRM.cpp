@@ -32,9 +32,10 @@ void max30102ISR(nrf_drv_gpiote_pin_t pin, nrf_gpiote_polarity_t polarity_) {
 SPO2HRM::SPO2HRM() {
 	pSPO2HRM = this;
 
+	IRring.reset();
+	REDring.reset();
+
 	measurement_started = false;
-	first_measurement = true;
-	samples_acquired = 0;
 	toggle_check = false;
 }
 
@@ -44,6 +45,9 @@ void SPO2HRM::init() {
 
 void SPO2HRM::start_measurement() {
 	measurement_started = true;
+
+	IRring.reset();
+	REDring.reset();
 
 	max30102.wakeUp();
 	delay(1);
@@ -70,21 +74,27 @@ void SPO2HRM::run() {
 
 	if (!measurement_started) return;
 
+	// TODO remove when interrupt pin is connected
 	int1 = max30102.getINT1();
-
 	if (int1 & 0b10000) {
 		// proximity INT: a finger just arrived
 		toggle_check = false;
+		// reset the ring buffers
+		IRring.reset();
+		REDring.reset();
+		// reset filters
+		IRFilter.resetFilter();
+		RedFilter.resetFilter();
 		// reset the samples acquired
-		samples_acquired = 0;
 		max30102.resetAvailable();
+		//max30102.clearFIFO();
 	} else if (int1 & 0b10000000) {
 		// FIFO INT
 		toggle_check = true;
 	} else {
 		toggle_check = false;
-		delay(10);
 	}
+	// end TODO
 
 	if (toggle_check) {
 		NRF_LOG_INFO("Checking MAX FIFO buffers after ISR %u\r\n", int1);
@@ -93,46 +103,34 @@ void SPO2HRM::run() {
 
 		// samples already received but not treated
 		new_samples = max30102.available();
-
 		if (!new_samples) {
-			delay(5);
 			return;
 		}
 
-		for (uint8_t i=0; i < new_samples && samples_acquired < NB_SAMPLES;i++) {
-			_red_buffer[samples_acquired] = max30102.getFIFORed();
-			_ir_buffer[samples_acquired] = max30102.getFIFOIR();
-			samples_acquired++;
+		for (uint8_t i=0; i < new_samples;i++) {
+			IRring.add(int16_t(IRFilter.filter_cheb1(max30102.getFIFOIR())));
+			REDring.add(int16_t(RedFilter.filter_cheb1(max30102.getFIFORed())));
+
 			max30102.nextSample();
 		}
 
-		if (samples_acquired >= NB_SAMPLES) {
-			// stop measurmeent
-
-			NRF_LOG_INFO("Samples processing\r\n");
-			NRF_LOG_FLUSH();
-
-			first_measurement = false;
-
-			// start algorithm
-			//After gathering 25 new samples recalculate HR and SP02
-			maxim_heart_rate_and_oxygen_saturation(_ir_buffer, samples_acquired, _red_buffer, &spo2, &validSPO2, &heartRate, &validHeartRate);
-
-			NRF_LOG_ERROR("HRM: %d  valid=%d\r\n", heartRate, validHeartRate);
-
-			// reset to 75
-			samples_acquired -= SAMPLES_SHIFTING;
-
-			//dumping the first 25 sets of samples in the memory and shift the last 75 sets of samples to the top
-			for (uint8_t i = SAMPLES_SHIFTING; i < 100; i++) {
-				_red_buffer[i - SAMPLES_SHIFTING] = _red_buffer[i];
-				_ir_buffer[i - SAMPLES_SHIFTING] = _ir_buffer[i];
-			}
-
-		} else {
-			NRF_LOG_INFO("%u Samples to go\r\n", NB_SAMPLES - samples_acquired);
-		}
-
-
 	}
+}
+
+void SPO2HRM::refreshCalculation () {
+
+	if (IRring._nb_data >= MIN_SAMPLES) {
+
+		NRF_LOG_INFO("Samples processing\r\n");
+
+		// TODO start algorithm
+		//maxim_heart	_rate_and_oxygen_saturation(_ir_buffer, IRring._nb_data, _red_buffer, &spo2, &validSPO2, &heartRate, &validHeartRate);
+		heartRate = getHRM(&IRring);
+
+		//NRF_LOG_ERROR("SPO2: %d  valid=%u\r\n", spo2, validSPO2);
+
+	} else {
+		NRF_LOG_INFO("Not enough samples\r\n");
+	}
+
 }

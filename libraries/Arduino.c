@@ -5,6 +5,7 @@
  *      Author: Vincent
  */
 
+#include "math.h"
 #include "nrf.h"
 #include "nrf_delay.h"
 #include "nrf_gpio.h"
@@ -55,7 +56,7 @@ void delay(uint32_t p_time) {
 
 }
 
-// fonction ecternalisee au timekeeper
+// fonction externalisee au timekeeper
 //uint32_t millis() {
 //
 //	static uint32_t nb_rollover = 0;
@@ -191,3 +192,54 @@ float compute2Complement(uint8_t msb, uint8_t lsb) {
 
 	return ret;
 }
+
+int percentageBatt (float tensionValue) {
+
+  float fp_ = 0.;
+
+  if (tensionValue > 3.78) {
+    fp_ = 536.34*tensionValue*tensionValue*tensionValue-6723.8*tensionValue*tensionValue;
+    fp_ += 28186*tensionValue-39407;
+  } else if (tensionValue > 2.) {
+    fp_ = pow(10, -11.4)*pow(tensionValue, 22.315);
+  } else {
+    fp_ = 0;
+  }
+
+  return (int)fp_;
+}
+
+//float min(float val1, float val2) {
+//  if (val1 <= val2) return val1;
+//  else return val2;
+//}
+//
+//float max(float val1, float val2) {
+//  if (val1 <= val2) return val2;
+//  else return val1;
+//}
+
+float regFen(float val_, float b1_i, float b1_f, float b2_i, float b2_f) {
+
+  float x, res;
+  // calcul x
+  x = (val_ - b1_i) / (b1_f - b1_i);
+
+  // calcul valeur: x commun
+  res = x * (b2_f - b2_i) + b2_i;
+  return res;
+}
+
+float regFenLim(float val_, float b1_i, float b1_f, float b2_i, float b2_f) {
+
+  float x, res;
+  // calcul x
+  x = (val_ - b1_i) / (b1_f - b1_i);
+
+  // calcul valeur: x commun
+  res = x * (b2_f - b2_i) + b2_i;
+  if (res < min(b2_i,b2_f)) res = min(b2_i,b2_f);
+  if (res > max(b2_i,b2_f)) res = max(b2_i,b2_f);
+  return res;
+}
+

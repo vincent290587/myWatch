@@ -767,9 +767,6 @@ int MAX30102::check(void)
 
 		} //End while (bytesLeftToRead > 0)
 
-		NRF_LOG_ERROR("Samples returned: %u\r\n", numberOfSamples);
-		NRF_LOG_FLUSH();
-
 	} //End readPtr != writePtr
 
 

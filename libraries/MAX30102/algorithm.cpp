@@ -57,10 +57,46 @@
  *******************************************************************************
  */
 
+#define NRF_LOG_MODULE_NAME "ALGO"
+#include "nrf_log.h"
+#include "nrf_log_ctrl.h"
+
 #include "algorithm.h"
 
-static int32_t an_x[ BUFFER_SIZE]; //ir
-static int32_t an_y[ BUFFER_SIZE]; //red
+
+int8_t getHRM(RingBuffer *irBuffer) {
+
+	uint16_t k;
+	int32_t an_x[BUFFER_SIZE]; //ir
+	int32_t an_ir_valley_locs[15];
+	int32_t n_th1, n_npks;
+	int32_t n_peak_interval_sum;
+	int8_t bpm;
+
+	for (k = 0; k < BUFFER_SIZE; k++) {
+		an_x[k] = -irBuffer->geti(k);
+	}
+
+	n_th1 = MIN(irBuffer->getRMS32(3), irBuffer->getRMS32(4));
+	n_th1 = MAX(n_th1, 75);
+
+	maxim_find_peaks(an_ir_valley_locs, &n_npks, an_x, BUFFER_SIZE, n_th1/2, 8, 15); //peak_height, peak_distance, max_num_peaks
+
+	NRF_LOG_ERROR("n_peaks: %d  thresh: %d\r\n", n_npks, n_th1);
+
+	n_peak_interval_sum = 0;
+	if (n_npks >= 2) {
+		for (k = 1; k < n_npks; k++)
+			n_peak_interval_sum += (an_ir_valley_locs[k]
+													  - an_ir_valley_locs[k - 1]);
+		n_peak_interval_sum = n_peak_interval_sum / (n_npks - 1);
+		bpm = (int32_t)((FS * 60) / n_peak_interval_sum);
+	} else {
+		bpm = -1; // unable to calculate because # of peaks are too small
+	}
+
+	return bpm;
+}
 
 void maxim_heart_rate_and_oxygen_saturation(uint32_t *pun_ir_buffer,
 		int32_t n_ir_buffer_length, uint32_t *pun_red_buffer, int32_t *pn_spo2,
@@ -83,17 +119,19 @@ void maxim_heart_rate_and_oxygen_saturation(uint32_t *pun_ir_buffer,
 		 * \retval       None
 		 */
 		{
-	uint32_t un_ir_mean, un_only_once;
+	int32_t an_x[ BUFFER_SIZE]; //ir
+	int32_t an_y[ BUFFER_SIZE]; //red
+	uint32_t un_ir_mean;
 	int32_t k, n_i_ratio_count;
-	int32_t i, s, m, n_exact_ir_valley_locs_count, n_middle_idx;
-	int32_t n_th1, n_npks, n_c_min;
+	int32_t i, n_exact_ir_valley_locs_count, n_middle_idx;
+	int32_t n_th1, n_npks;
 	int32_t an_ir_valley_locs[15];
 	int32_t n_peak_interval_sum;
 
 	int32_t n_y_ac, n_x_ac;
 	int32_t n_spo2_calc;
 	int32_t n_y_dc_max, n_x_dc_max;
-	int32_t n_y_dc_max_idx, n_x_dc_max_idx;
+	int32_t n_y_dc_max_idx=0, n_x_dc_max_idx=0;
 	int32_t an_ratio[5], n_ratio_average;
 	int32_t n_nume, n_denom;
 
@@ -124,9 +162,11 @@ void maxim_heart_rate_and_oxygen_saturation(uint32_t *pun_ir_buffer,
 
 	for (k = 0; k < 15; k++)
 		an_ir_valley_locs[k] = 0;
+
 	// since we flipped signal, we use peak detector as valley detector
 	maxim_find_peaks(an_ir_valley_locs, &n_npks, an_x, BUFFER_SIZE, n_th1, 4,
 			15); //peak_height, peak_distance, max_num_peaks
+
 	n_peak_interval_sum = 0;
 	if (n_npks >= 2) {
 		for (k = 1; k < n_npks; k++)
@@ -149,9 +189,8 @@ void maxim_heart_rate_and_oxygen_saturation(uint32_t *pun_ir_buffer,
 	// find precise min near an_ir_valley_locs
 	n_exact_ir_valley_locs_count = n_npks;
 
-	//using exact_ir_valley_locs , find ir-red DC andir-red AC for SPO2 calibration an_ratio
+	//using exact_ir_valley_locs , find ir-red DC and ir-red AC for SPO2 calibration an_ratio
 	//finding AC/DC maximum of raw
-
 	n_ratio_average = 0;
 	n_i_ratio_count = 0;
 	for (k = 0; k < 5; k++)
@@ -163,8 +202,9 @@ void maxim_heart_rate_and_oxygen_saturation(uint32_t *pun_ir_buffer,
 			return;
 		}
 	}
+
 	// find max between two valley locations
-	// and use an_ratio betwen AC compoent of Ir & Red and DC compoent of Ir & Red for SPO2
+	// and use an_ratio betwen AC component of Ir & Red and DC compoent of Ir & Red for SPO2
 	for (k = 0; k < n_exact_ir_valley_locs_count - 1; k++) {
 		n_y_dc_max = -16777216;
 		n_x_dc_max = -16777216;
@@ -206,8 +246,7 @@ void maxim_heart_rate_and_oxygen_saturation(uint32_t *pun_ir_buffer,
 	n_middle_idx = n_i_ratio_count / 2;
 
 	if (n_middle_idx > 1)
-		n_ratio_average = (an_ratio[n_middle_idx - 1] + an_ratio[n_middle_idx])
-				/ 2; // use median
+		n_ratio_average = (an_ratio[n_middle_idx - 1] + an_ratio[n_middle_idx]) / 2; // use median
 	else
 		n_ratio_average = an_ratio[n_middle_idx];
 
