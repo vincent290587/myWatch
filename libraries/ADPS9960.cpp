@@ -189,6 +189,62 @@ bool APDS9960::init() {
 	return true;
 }
 
+
+void APDS9960::run() {
+
+	static uint8_t todo = false;
+
+	if (!todo && (gestureISRFlag == true)) {
+		if (this->isGestureAvailable()) {
+			NRF_LOG_ERROR("Gesture available ;-) !\r\n");
+			todo = true;
+			gestureISRFlag = false;
+		}
+	}
+
+	if (todo) {
+		switch (this->readGesture()) {
+		case DIR_UP:
+			todo = false;
+			this->notify(SWIPE, Yp);
+			NRF_LOG_ERROR("UP\r\n");
+			break;
+		case DIR_DOWN:
+			todo = false;
+			this->notify(SWIPE, Ym);
+			NRF_LOG_ERROR("DOWN\r\n");
+			break;
+		case DIR_LEFT:
+			todo = false;
+			this->notify(SWIPE, Xm);
+			NRF_LOG_ERROR("LEFT\r\n");
+			break;
+		case DIR_RIGHT:
+			todo = false;
+			this->notify(SWIPE, Xp);
+			NRF_LOG_ERROR("RIGHT\r\n");
+			break;
+		case DIR_NEAR:
+			todo = false;
+			NRF_LOG_ERROR("NEAR\r\n");
+			break;
+		case DIR_FAR:
+			todo = false;
+			NRF_LOG_ERROR("FAR\r\n");
+			break;
+		case DIR_NONE:
+			todo = false;
+			NRF_LOG_ERROR("NONE\r\n");
+			break;
+		default:
+			break;
+
+		}
+
+	}
+}
+
+
 /*******************************************************************************
  * Public methods for controlling the APDS-9960
  ******************************************************************************/

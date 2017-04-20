@@ -17,7 +17,7 @@
 #define NB_SAMPLES 128
 #define SAMPLES_SHIFTING (NB_SAMPLES/4)
 
-#define INT_PIN_MAX  28
+#define INT_PIN_MAX  12
 
 extern "C" void max30102ISR(nrf_drv_gpiote_pin_t pin, nrf_gpiote_polarity_t polarity_);
 
@@ -51,8 +51,6 @@ private:
 
 	bool measurement_started;
 	bool first_measurement;
-
-	float filter_cheb1(uint32_t new_data);
 
 };
 

@@ -50,8 +50,8 @@ void spi_init(void) {
 	nrf_drv_spi_config_t spi_config = NRF_DRV_SPI_DEFAULT_CONFIG;
 	spi_config.ss_pin = NRF_DRV_SPI_PIN_NOT_USED;
 	spi_config.miso_pin = NRF_DRV_SPI_PIN_NOT_USED;
-	spi_config.mosi_pin = 5;
-	spi_config.sck_pin = 6;
+	spi_config.mosi_pin = 3;
+	spi_config.sck_pin = 5;
 	spi_config.frequency = NRF_DRV_SPI_FREQ_4M;
 	spi_config.mode = NRF_DRV_SPI_MODE_0;
 

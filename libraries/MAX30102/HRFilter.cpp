@@ -50,19 +50,19 @@ float HRFilter::filter_cheb1(int32_t new_data) {
 float HRFilter::filter_coarse(int32_t new_data) {
 
   // working coarse filter !
-  const float cx1_ = -0.0434251;
-  const float cx2_ = 0.4266939;
-  const float cx3_ = -0.3832688;
+  static const float cx1_ = -0.0434251;
+  static const float cx2_ = 0.4266939;
+  static const float cx3_ = -0.3832688;
 
-  const float cy2_ = -1.5013042;
-  const float cy3_ = 0.6601563;
+  static const float cy2_ = -1.5013042;
+  static const float cy3_ = 0.6601563;
 
   static float vx1_ = 0, vx2_ = 0, vx3_ = 0;
   static float vy1_ = 0, vy2_ = 0, vy3_ = 0;
 
-  float res;
+  float res = 0;
 
-  vx3_ = vx2_; vx2_ = vx1_; vx1_ = new_data;
+  vx3_ = vx2_; vx2_ = vx1_; vx1_ = float(new_data);
   vy3_ = vy2_; vy2_ = vy1_;
 
   res = vx1_ * cx1_ + vx2_ * cx2_ + vx3_ * cx3_;

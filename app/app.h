@@ -17,12 +17,8 @@ class APP {
 public:
 	APP();
 	void init();
-	void sm_run();
-	void run_very_low_power();
 	void run();
-	void run_low_power();
-	void run_sport();
-	void runADPS();
+	void switchMode(uint8_t);
 
 	TimeKeeper timekeeper;
 	volatile bool bigTick;
@@ -32,7 +28,10 @@ private:
 	uint32_t nbTicks;
 	uint8_t app_mode;
 
-	void testdrawrect(void);
+	void sm_run();
+	void run_low_power();
+	void run_sport();
+	void run_very_low_power();
 };
 
 #endif /* APP_APP_H_ */

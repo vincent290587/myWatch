@@ -181,7 +181,10 @@ void MMA8451_n0m1::clearInterrupt() {
 	if (debug)
 		serial.print("(clearInterrupt) ");
 	// TODO check that
-	if (pulseISRFlag || shakeISRFlag || 1) {
+	if (pulseISRFlag || shakeISRFlag) {
+
+		pulseISRFlag = shakeISRFlag = false;
+
 		if (debug)
 			serial.println(" ISRFlag ON");
 
@@ -203,14 +206,17 @@ void MMA8451_n0m1::clearInterrupt() {
 
 			if ((srcTrans & 0x02) == 0x02) {
 				serial.println("Shake on X"); // tabbing here for visibility
+				this->notify(SHAKE, Xp);
 				shakeAxisX_ = true;
 			}
 			if ((srcTrans & 0x08) == 0x08) {
 				serial.println("Shake on Y"); // tabbing here for visibility
+				this->notify(SHAKE, Yp);
 				shakeAxisY_ = true;
 			}
 			if ((srcTrans & 0x20) == 0x20) {
 				serial.println("Shake on Z"); // tabbing here for visibility
+				this->notify(SHAKE, Zp);
 				shakeAxisZ_ = true;
 			}
 		}
@@ -237,9 +243,11 @@ void MMA8451_n0m1::clearInterrupt() {
 
 				if ((source & 0x01) == 0x01) { // If PoIX is set
 					serial.println(" -");
+					this->notify((Action)pulseAxisX_, Xm);
 					pulseAxisX_ = -pulseAxisX_;
 				} else {
 					serial.println(" +");
+					this->notify((Action)pulseAxisX_, Xp);
 				}
 			}
 			if ((source & 0x20) == 0x20) { // If AxY bit is set
@@ -254,9 +262,11 @@ void MMA8451_n0m1::clearInterrupt() {
 
 				if ((source & 0x02) == 0x02) { // If PoIY is set
 					serial.println(" -");
+					this->notify((Action)pulseAxisY_, Ym);
 					pulseAxisY_ = -pulseAxisY_;
 				} else {
 					serial.println(" +");
+					this->notify((Action)pulseAxisY_, Yp);
 				}
 			}
 			if ((source & 0x40) == 0x40) { // If AxZ bit is set
@@ -272,9 +282,11 @@ void MMA8451_n0m1::clearInterrupt() {
 
 			    if ((source & 0x04)==0x04) { // If PoIZ is set
 			      serial.println(" -");
+			      this->notify((Action)pulseAxisZ_, Zm);
 			      pulseAxisZ_ = -pulseAxisZ_;
 			    } else {
 			      serial.println(" +");
+			      this->notify((Action)pulseAxisZ_, Zp);
 			    }
 			}
 
@@ -289,8 +301,7 @@ void MMA8451_n0m1::clearInterrupt() {
 
 		}
 
-		if ((sourceSystem & 0x01) == 0x01) //DataReady
-				{
+		if ((sourceSystem & 0x01) == 0x01) { //DataReady
 			if (debug)
 				serial.println("Processing Dataready interrupt");
 //			detachISRProc();
@@ -298,7 +309,7 @@ void MMA8451_n0m1::clearInterrupt() {
 //			attachISRProc();
 			dataready_ = true;
 		}
-		pulseISRFlag = shakeISRFlag = false;
+
 	} else {
 		if (debug) {
 			serial.println(" ISRFlag OFF dumping accelrator registers ");
@@ -611,10 +622,10 @@ void MMA8451_n0m1::pulseMode(boolean enableX, boolean enableY,
 	// wireWriteDataByte(REG_PULSE_CFG, 0x6A);  // 1. double taps only on all axes
 
 	// 2. x thresh at 4g, multiply the value by 0.0625g/LSB to get the threshold
-	wireWriteDataByte(REG_PULSE_THSX, 0x30);
+	wireWriteDataByte(REG_PULSE_THSX, 0x40);
 
 	// 2. y thresh at 4g, multiply the value by 0.0625g/LSB to get the threshold
-	wireWriteDataByte(REG_PULSE_THSY, 0x30);
+	wireWriteDataByte(REG_PULSE_THSY, 0x40);
 
 	// 2. z thresh at 5g, multiply the value by 0.0625g/LSB to get the threshold
 	wireWriteDataByte(REG_PULSE_THSZ, 0x40);

@@ -39,11 +39,10 @@ uint8_t sharpmem_buffer[(SHARPMEM_LCDWIDTH * SHARPMEM_LCDHEIGHT) / 8];
 /* CONSTRUCTORS  */
 /* ************* */
 TSharpMem::TSharpMem(uint8_t ss) : Adafruit_GFX(SHARPMEM_LCDWIDTH, SHARPMEM_LCDHEIGHT) {
+
+	// set SPI pin
 	_ss = ss;
-
 	pinMode(_ss, OUTPUT);
-
-	delay(10);
 
 	// Set the vcom bit to a defined state
 	_sharpmem_vcom = SHARPMEM_BIT_VCOM;

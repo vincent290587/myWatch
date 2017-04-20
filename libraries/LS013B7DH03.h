@@ -29,14 +29,13 @@
 
 class TSharpMem: public Adafruit_GFX {
 public:
-	TSharpMem(uint8_t ss = 4);
+	TSharpMem(uint8_t ss = 2);
 	void begin(void);
 	void drawPixel(int16_t x, int16_t y, uint16_t color);
 	uint8_t getPixel(uint16_t x, uint16_t y);
 	void clearDisplay(void);
 
 	void resetBuffer(void);
-	void writeWhole(void);
 	void refresh() {writeWhole();}
 
 private:
@@ -45,6 +44,7 @@ private:
 
 	void sendbyte(uint8_t data);
 	void sendbyteLSB(uint8_t data);
+	void writeWhole(void);
 	void sendbyteLSB_last(uint8_t data);
 protected:
 	uint8_t pcs_data, pcs_command;

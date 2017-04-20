@@ -63,7 +63,7 @@
  
 
 #ifndef BLE_ANCS_C_ENABLED
-#define BLE_ANCS_C_ENABLED 0
+#define BLE_ANCS_C_ENABLED 1
 #endif
 
 // <q> BLE_ANS_C_ENABLED  - ble_ans_c - Alert Notification Service Client

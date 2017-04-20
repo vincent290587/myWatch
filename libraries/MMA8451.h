@@ -11,8 +11,9 @@
 #include "Arduino.h"
 #include "Serial.h"
 #include "I2CDEVICE.h"
+#include "MotionController.h"
 
-#define INT_PIN1    7
+#define INT_PIN1    9
 #define INT_PIN2    8
 
 #define SENSORS_GRAVITY_EARTH             (9.80665F)              /**< Earth's gravity in m/s^2 */
@@ -101,9 +102,8 @@ const byte lowNoiseMask = 0x04;
 extern "C" void accelPulseISR(nrf_drv_gpiote_pin_t pin, nrf_gpiote_polarity_t polarity_);
 extern "C" void accelShakeISR(nrf_drv_gpiote_pin_t pin, nrf_gpiote_polarity_t polarity_);
 
-extern Serial serial;
 
-class MMA8451_n0m1 : public I2C_Device {
+class MMA8451_n0m1 : public I2C_Device, public MotionController {
 
 public:
 	friend void accelISR(void); //make friend so bttnPressISR can access private var keyhit

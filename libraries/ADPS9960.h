@@ -10,11 +10,12 @@
 
 #include "I2CDEVICE.h"
 #include "Serial.h"
+#include "MotionController.h"
 
 /* Debug */
 #define ADPS_DEBUG              0
 
-#define ADPS_INT_PIN            2
+#define ADPS_INT_PIN            13
 
 /* Gesture parameters */
 #define GESTURE_THRESHOLD_OUT   10
@@ -200,12 +201,13 @@ typedef struct gesture_data_type {
 extern "C" void gestureISR(nrf_drv_gpiote_pin_t pin, nrf_gpiote_polarity_t polarity_);
 
 /* APDS9960 Class */
-class APDS9960 : public I2C_Device {
+class APDS9960 : public I2C_Device, public MotionController {
 public:
 
 	/* Initialization methods */
 	APDS9960();
 	bool init();
+	void run();
 	uint8_t getMode();
 	bool setMode(uint8_t mode, uint8_t enable);
 

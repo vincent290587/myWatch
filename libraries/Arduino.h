@@ -75,9 +75,9 @@ float regFen(float val_, float b1_i, float b1_f, float b2_i, float b2_f);
 
 float regFenLim(float val_, float b1_i, float b1_f, float b2_i, float b2_f);
 
+
 #ifdef __cplusplus
 }
 #endif
-
 
 #endif /* LIBRARIES_ARDUINO_H_ */

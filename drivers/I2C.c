@@ -28,8 +28,8 @@ void i2c_init(void) {
     uint32_t err_code;
 
     nrf_drv_twi_config_t const twi_config = {
-       .scl                = 16,
-       .sda                = 17,
+       .scl                = 30,
+       .sda                = 31,
        .frequency          = NRF_TWI_FREQ_400K,
        .interrupt_priority = APP_IRQ_PRIORITY_LOW,
        .clear_bus_init     = true

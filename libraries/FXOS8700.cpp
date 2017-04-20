@@ -13,7 +13,7 @@
 #include "nrf_log.h"
 #include "nrf_log_ctrl.h"
 
-
+#define FXOS_RST_PIN 21
 
 
 FXOS8700::FXOS8700() : MMA8451_n0m1() {
@@ -56,7 +56,7 @@ bool FXOS8700::init() {
 	wireWriteDataByte(FXOS8700CQ_M_CTRL_REG2, statusCheck);
 
 	// Global shared ODR
-	setODR(ODR_200Hz);
+	setODR(ODR_800Hz);
 
 	// go !!
 	setActive();

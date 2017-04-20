@@ -60,7 +60,7 @@
  
 
 #ifndef BLE_ANCS_C_ENABLED
-#define BLE_ANCS_C_ENABLED 0
+#define BLE_ANCS_C_ENABLED 1
 #endif
 
 // <q> BLE_ANS_C_ENABLED  - ble_ans_c - Alert Notification Service Client
@@ -3630,7 +3630,7 @@
 // <4=> Debug 
 
 #ifndef NRF_LOG_DEFAULT_LEVEL
-#define NRF_LOG_DEFAULT_LEVEL 4
+#define NRF_LOG_DEFAULT_LEVEL 3
 #endif
 
 // <e> NRF_LOG_DEFERRED - Enable deffered logger.

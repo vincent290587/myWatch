@@ -70,7 +70,6 @@ void APP::init() {
 	nrf_delay_ms(1);
 
 	// screen init
-	vue.clearDisplay();
 	vue.setTK(&timekeeper);
 	vue.begin();
 
@@ -81,68 +80,68 @@ void APP::init() {
 	i2c_init();
 
 	// STC3100 init
-//	stc.init();
+	stc.init();
 
 	// accelero configuration
-//	acc.init();
+	acc.init();
+
+	// init LDO 2
+	nrf_gpio_cfg_output(LED_EN_PIN);
+	nrf_gpio_pin_clear(LED_EN_PIN);
 
 	// motion sensing init
-//	adps.init();
-	//adps.disablePower();
+	adps.init();
+	adps.disablePower();
+	//adps.enableGestureSensor(true);
 
 	// baro init
-//	baro.init();
+	baro.init();
 
 	// UV init
-//	veml.init();
+	veml.init();
 
 	// MAX30102 init
+//	nrf_gpio_pin_set(LED_EN_PIN);
 	spo_hrm.init();
-//	spo_hrm.max30102.shutDown();
-	spo_hrm.start_measurement();
+	spo_hrm.max30102.shutDown();
+//	spo_hrm.start_measurement();
 }
 
 
 void APP::run() {
 
+	// functions needed to run continuously:
+    adps.run();
+
+	// run state machine (10Hz)
+	sm_run();
 
 }
 
-void APP::run_low_power() {
+void APP::switchMode(uint8_t new_mode) {
 
-	neopix.setColor(0xFF, 0, 0);
+	switch (app_mode) {
+	case LOW_POWER:
+		if (new_mode==SPORT) {
+			nrf_gpio_pin_set(LED_EN_PIN);
+			spo_hrm.start_measurement();
 
-	if (0) {
-
-		if (nbTicks == 1) {
-
-			NRF_LOG_INFO("Voltage: " NRF_LOG_FLOAT_MARKER "\r\n", NRF_LOG_FLOAT(stc.getVoltage()));
-			NRF_LOG_INFO("Temperature: " NRF_LOG_FLOAT_MARKER "\r\n", NRF_LOG_FLOAT(stc.getTemperature()));
-			NRF_LOG_ERROR("Power consumption: " NRF_LOG_FLOAT_MARKER "\r\n", NRF_LOG_FLOAT(stc.getCurrent()));
+			// mode change
+			app_mode = SPORT;
 		}
-		else if (nbTicks == 2) {
+		break;
+	case SPORT:
+		if (new_mode==LOW_POWER) {
+			spo_hrm.stop_measurement();
+			spo_hrm.max30102.shutDown();
+			nrf_gpio_pin_clear(LED_EN_PIN);
 
-			acc.update();
-			NRF_LOG_INFO("Xg: " NRF_LOG_FLOAT_MARKER "\r\n", NRF_LOG_FLOAT(acc.xg()));
-			NRF_LOG_INFO("Yg: " NRF_LOG_FLOAT_MARKER "\r\n", NRF_LOG_FLOAT(acc.yg()));
-			NRF_LOG_INFO("Zg: " NRF_LOG_FLOAT_MARKER "\r\n", NRF_LOG_FLOAT(acc.zg()));
-
-			vue.LowPowerScreen(acc.computeNorthDirection());
-
+			// mode change
+			app_mode = LOW_POWER;
 		}
-		else if (nbTicks == 3) {
-
-			veml.poll();
-			NRF_LOG_INFO("UVA: " NRF_LOG_FLOAT_MARKER "\r\n", NRF_LOG_FLOAT(veml.getUVA()));
-			NRF_LOG_INFO("UVB: " NRF_LOG_FLOAT_MARKER "\r\n", NRF_LOG_FLOAT(veml.getUVB()));
-
-		}
+		break;
 	}
 
-	acc.update();
-
-	// update neopixel
-	neopix.show();
 
 }
 
@@ -150,29 +149,69 @@ void APP::run_very_low_power() {
 
 }
 
-void APP::run_sport() {
 
-	if (nbTicks%2 == 1) spo_hrm.run();
+void APP::run_low_power() {
+
+	// disable LDO 2
+	nrf_gpio_pin_clear(LED_EN_PIN);
+
+	neopix.setColor(0, 0, 0);
 
 	if (nbTicks == 1) {
 
-		//NRF_LOG_INFO("Voltage: " NRF_LOG_FLOAT_MARKER "\r\n", NRF_LOG_FLOAT(stc.getVoltage()));
-		//NRF_LOG_INFO("Temperature: " NRF_LOG_FLOAT_MARKER "\r\n", NRF_LOG_FLOAT(stc.getTemperature()));
-		//NRF_LOG_ERROR("Power consumption: " NRF_LOG_FLOAT_MARKER "\r\n", NRF_LOG_FLOAT(stc.getCurrent()));
+		NRF_LOG_INFO("Voltage: " NRF_LOG_FLOAT_MARKER "\r\n", NRF_LOG_FLOAT(stc.getVoltage()));
+		NRF_LOG_INFO("Temperature: " NRF_LOG_FLOAT_MARKER "\r\n", NRF_LOG_FLOAT(stc.getTemperature()));
+		NRF_LOG_ERROR("Power consumption: " NRF_LOG_FLOAT_MARKER "\r\n", NRF_LOG_FLOAT(stc.getCurrent()));
+	}
+	else if (nbTicks == 2) {
+
+		NRF_LOG_INFO("Xg: " NRF_LOG_FLOAT_MARKER "\r\n", NRF_LOG_FLOAT(acc.xg()));
+		NRF_LOG_INFO("Yg: " NRF_LOG_FLOAT_MARKER "\r\n", NRF_LOG_FLOAT(acc.yg()));
+		NRF_LOG_INFO("Zg: " NRF_LOG_FLOAT_MARKER "\r\n", NRF_LOG_FLOAT(acc.zg()));
+
+	}
+	else if (nbTicks == 3) {
+
+		NRF_LOG_INFO("UVA: " NRF_LOG_FLOAT_MARKER "\r\n", NRF_LOG_FLOAT(veml.getUVA()));
+		NRF_LOG_INFO("UVB: " NRF_LOG_FLOAT_MARKER "\r\n", NRF_LOG_FLOAT(veml.getUVB()));
+
+	}
+
+	// refresh at 3Hz
+	if ((nbTicks%3) == 0) {
+		vue.triggerRefresh();
+	}
+
+	// run at 10Hz without interrupts
+	acc.update();
+
+	// update neopixel
+	neopix.show();
+
+}
+
+void APP::run_sport() {
+
+	// Gather MAX30102 data
+	if ((nbTicks%2) == 1) spo_hrm.run();
+
+	if (nbTicks == 1) {
+
+		NRF_LOG_ERROR("Power consumption: " NRF_LOG_FLOAT_MARKER "\r\n", NRF_LOG_FLOAT(stc.getCurrent()));
 
 		if (digitalRead(INT_PIN_MAX) == LOW) {
 			NRF_LOG_WARNING("Pin MAX low\r\n");
-		} else {
-			NRF_LOG_WARNING("Pin MAX high\r\n");
+			spo_hrm.run();
 		}
 
 	} else if (nbTicks == 5) {
 
 		spo_hrm.refreshCalculation();
-		vue.SPO2Screen(&spo_hrm);
+
+		// refresh screen
+		vue.triggerRefresh();
 
 	}
-
 
 }
 
@@ -189,96 +228,39 @@ void APP::sm_run() {
 		nbTicks++;
 		nbTicks = nbTicks % 10;
 
+		// run controller
+		control.run();
+
 		if (!nbTicks) {
 
 			// update current
 			if (stc.isPresent(STC3100_ADDRESS)) {
 				stc.refresh();
-				vue.setCurrent(stc.getCurrent());
-			} else {
-				vue.setCurrent(-1);
 			}
 
-			// force display all
-			vue.refresh();
+			// update UV
+			veml.poll();
 
-			// reset screen
-			vue.resetBuffer();
-		} else {
-			// USER STATE MACHINE
-			switch (_state) {
-			case VERY_LOW_POWER:
-				this->run_very_low_power();
-				break;
-			case LOW_POWER:
-				this->run_low_power();
-				break;
-			case SPORT:
-				this->run_sport();
-				break;
-			}
+			// trigger a refresh at least once per second
+			vue.triggerRefresh();
 		}
+
+		// USER STATE MACHINE
+		switch (state) {
+		case VERY_LOW_POWER:
+			this->run_very_low_power();
+			break;
+		case LOW_POWER:
+			this->run_low_power();
+			break;
+		case SPORT:
+			this->run_sport();
+			break;
+		}
+
+		// display
+		vue.run();
+
 	}
-	// functions needed to run continuously
-	//runADPS();
 
 }
-
-void APP::runADPS() {
-
-	static uint8_t todo = false;
-
-	if (!todo && (adps.gestureISRFlag == true || digitalRead(2) == LOW)) {
-		if (adps.isGestureAvailable()) {
-			NRF_LOG_ERROR("Gesture available ;-) !\r\n");
-			todo = true;
-			adps.gestureISRFlag = false;
-		}
-	}
-
-	if (todo) {
-		switch ( adps.readGesture() ) {
-		case DIR_UP:
-			todo = false;
-			NRF_LOG_ERROR("UP");
-			break;
-		case DIR_DOWN:
-			todo = false;
-			NRF_LOG_ERROR("DOWN");
-			break;
-		case DIR_LEFT:
-			todo = false;
-			NRF_LOG_ERROR("LEFT");
-			break;
-		case DIR_RIGHT:
-			todo = false;
-			NRF_LOG_ERROR("RIGHT");
-			break;
-		case DIR_NEAR:
-			todo = false;
-			NRF_LOG_ERROR("NEAR");
-			break;
-		case DIR_FAR:
-			todo = false;
-			NRF_LOG_ERROR("FAR");
-			break;
-		case DIR_NONE:
-			todo = false;
-			NRF_LOG_ERROR("NONE");
-			break;
-		default:
-			break;
-
-		}
-
-	}
-}
-
-
-void APP::testdrawrect(void) {
-	for (uint8_t i = 0; i < vue.height() / 2; i += 2) {
-		vue.drawRect(i, i, vue.width() - 2 * i, vue.height() - 2 * i, BLACK);
-		vue.refresh();
-	}
- }
-
