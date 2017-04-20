@@ -9,9 +9,6 @@
 #define APP_APP_H_
 
 #include "TimeKeeper.h"
-#include "Vue.h"
-
-enum State { VERY_LOW_POWER , LOW_POWER , SPORT };
 
 void init_timers_millis();
 
@@ -32,10 +29,8 @@ public:
 	static APP* pApp;
 
 private:
-	Vue vue;
 	uint32_t nbTicks;
 	uint8_t app_mode;
-	State _state;
 
 	void testdrawrect(void);
 };

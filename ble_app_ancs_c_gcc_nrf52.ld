@@ -9,6 +9,8 @@ MEMORY
 {
   FLASH (rx) : ORIGIN = 0x1f000, LENGTH = 0x61000
   RAM (rwx) :  ORIGIN = 0x200021b8, LENGTH = 0x5e48
+  /** Location of bootloader setting in flash. */
+  BOOTLOADER_SETTINGS (rw) : ORIGIN = 0x0007F000, LENGTH = 0x1000
 }
 
 SECTIONS
@@ -25,6 +27,10 @@ SECTIONS
     KEEP(*(.pwr_mgmt_data))
     PROVIDE(__stop_pwr_mgmt_data = .);
   } > RAM
+  .bootloaderSettings(NOLOAD) :
+  {
+
+  } > BOOTLOADER_SETTINGS
 } INSERT AFTER .data;
 
 INCLUDE "nrf5x_common.ld"

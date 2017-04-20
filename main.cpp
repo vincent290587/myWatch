@@ -37,7 +37,6 @@
 #include "ble.h"
 #include "ble_cts_c.h"
 #include "ble_conn_state.h"
-#include "ble_db_discovery.h"
 #include "ble_hci.h"
 #include "ble_srv_common.h"
 #include "ble_advdata.h"
@@ -52,16 +51,17 @@
 #include "nrf.h"
 #include "nrf_gpio.h"
 #include "softdevice_handler.h"
+#include "nrf_drv_wdt.h"
+#include "app_ble.h"
 
-
+#include "Global.h"
 #include "Arduino.h"
-#include "app.h"
 
 #define NRF_LOG_MODULE_NAME "APP"
 #include "nrf_log.h"
 #include "nrf_log_ctrl.h"
 
-APP app;
+using namespace mvc;
 
 #if (NRF_SD_BLE_API_VERSION == 3)
 #define NRF_BLE_MAX_MTU_SIZE            GATT_MTU_SIZE_DEFAULT                       /**< MTU size used in the softdevice enabling and to reply to a BLE_GATTS_EVT_EXCHANGE_MTU_REQUEST event. */
@@ -72,22 +72,19 @@ APP app;
 
 #define IS_SRVC_CHANGED_CHARACT_PRESENT 0                                           /**< Include or exclude the service_changed characteristic. If excluded, the server's database cannot be changed for the lifetime of the device. */
 
-#define WAKEUP_BUTTON_ID                0                                           /**< Button used to wake up the application. */
-#define BOND_DELETE_ALL_BUTTON_ID       1                                           /**< Button used to delete all bonded centrals during startup. */
-#define CURRENT_TIME_READ_BUTTON_ID     0                                           /**< Button used to read the current time from the server/central. */
-
 #define DEVICE_NAME                     "myWatch"                                /**< Name of the device. Will be included in the advertising data. */
 #define APP_ADV_FAST_INTERVAL           0x0028                                      /**< Fast advertising interval (in units of 0.625 ms). The default value corresponds to 25 ms. */
 #define APP_ADV_SLOW_INTERVAL           0x0C80                                      /**< Slow advertising interval (in units of 0.625 ms). The default value corresponds to 2 seconds. */
-#define APP_ADV_SLOW_TIMEOUT            180                                         /**< The duration of the slow advertising period (in seconds). */
-#define APP_ADV_FAST_TIMEOUT            30                                          /**< The duration of the fast advertising period (in seconds). */
+#define APP_ADV_SLOW_TIMEOUT            0                                         /**< The duration of the slow advertising period (in seconds). */
+#define APP_ADV_FAST_TIMEOUT            60                                          /**< The duration of the fast advertising period (in seconds). */
 
-#define APP_TIMER_OP_QUEUE_SIZE         4                                           /**< Size of timer operation queues. */
+#define APP_TIMER_OP_QUEUE_SIZE         5                                           /**< Size of timer operation queues. */
 
 #define MIN_CONN_INTERVAL               MSEC_TO_UNITS(500, UNIT_1_25_MS)            /**< Minimum acceptable connection interval (0.5 seconds). */
 #define MAX_CONN_INTERVAL               MSEC_TO_UNITS(1000, UNIT_1_25_MS)           /**< Maximum acceptable connection interval (1 second). */
 #define SLAVE_LATENCY                   0                                           /**< Slave latency. */
 #define CONN_SUP_TIMEOUT                MSEC_TO_UNITS(4000, UNIT_10_MS)             /**< Connection supervisory time-out (4 seconds). */
+
 #define FIRST_CONN_PARAMS_UPDATE_DELAY  APP_TIMER_TICKS(5000, APP_TIMER_PRESCALER)  /**< Time from initiating event (connect or start of notification) to first time sd_ble_gap_conn_param_update is called (5 seconds). */
 #define NEXT_CONN_PARAMS_UPDATE_DELAY   APP_TIMER_TICKS(30000, APP_TIMER_PRESCALER) /**< Time between each call to sd_ble_gap_conn_param_update after the first call (30 seconds). */
 #define MAX_CONN_PARAMS_UPDATE_COUNT    3                                           /**< Number of attempts before giving up the connection parameter negotiation. */
@@ -108,30 +105,26 @@ APP app;
 
 #define DEAD_BEEF                       0xDEADBEEF                                  /**< Value used as error code on stack dump, can be used to identify stack location on stack unwind. */
 
+#define SCHED_MAX_EVENT_DATA_SIZE 		MAX(APP_TIMER_SCHED_EVT_SIZE, \
+        									BLE_STACK_HANDLER_SCHED_EVT_SIZE)       /**< Maximum size of scheduler events. */
 
-static ble_db_discovery_t m_ble_db_discovery;                                       /**< Structure used to identify the DB Discovery module. */
-static ble_cts_c_t        m_cts;                                                    /**< Instance of Current Time Service. The instance uses this struct to store data related to the service. */
-static pm_peer_id_t       m_peer_id;                                                /**< Device reference handle to the current bonded central. */
-static uint16_t           m_cur_conn_handle = BLE_CONN_HANDLE_INVALID;              /**< Handle of the current connection. */
-
-APP_TIMER_DEF(m_sec_req_timer_id);                          /**< Security request timer. */
-APP_TIMER_DEF(m_time_timer_id);                          /**< time request timer. */
-
-
-
-#define SCHED_MAX_EVENT_DATA_SIZE sizeof(app_timer_event_t) /**< Maximum size of scheduler events. Note that scheduler BLE stack events do not contain any data, as the events are being pulled from the stack in the event handler. */
 #ifdef SVCALL_AS_NORMAL_FUNCTION
 #define SCHED_QUEUE_SIZE                 20                                         /**< Maximum number of events in the scheduler queue. More is needed in case of Serialization. */
 #else
-#define SCHED_QUEUE_SIZE          10                        /**< Maximum number of events in the scheduler queue. */
+#define SCHED_QUEUE_SIZE          		 10                        /**< Maximum number of events in the scheduler queue. */
 #endif
-static ble_uuid_t m_adv_uuids[] = {{BLE_UUID_CURRENT_TIME_SERVICE, BLE_UUID_TYPE_BLE}};
 
+static ble_db_discovery_t m_ble_db_discovery;                                       /**< Structure used to identify the DB Discovery module. */
+static pm_peer_id_t       m_peer_id;                                                /**< Device reference handle to the current bonded central. */
+static uint16_t           m_cur_conn_handle = BLE_CONN_HANDLE_INVALID;              /**< Handle of the current connection. */
 
 static pm_peer_id_t   m_whitelist_peers[BLE_GAP_WHITELIST_ADDR_MAX_COUNT];  /**< List of peers currently in the whitelist. */
 static uint32_t       m_whitelist_peer_cnt;                                 /**< Number of peers currently in the whitelist. */
 static bool           m_is_wl_changed;                                      /**< Indicates if the whitelist has been changed since last time it has been updated in the Peer Manager. */
 
+APP_TIMER_DEF(m_sec_req_timer_id); /**< Security request timer. */
+
+nrf_drv_wdt_channel_id m_channel_id;
 
 
 void app_error_handler(uint32_t error_code, uint32_t line_num, const uint8_t *p_file_name) {
@@ -237,8 +230,10 @@ static void pm_evt_handler(pm_evt_t const * p_evt)
         case PM_EVT_BONDED_PEER_CONNECTED:
         {
             NRF_LOG_INFO("Connected to a previously bonded device.\r\n");
-            err_code = app_timer_start(m_time_timer_id, TIME_UPDATE_DELAY, NULL);
-            APP_ERROR_CHECK(err_code);
+
+            cts_timers_start();
+			
+			//m_peer_id = p_evt->peer_id;
         } break;
 
         case PM_EVT_CONN_SEC_SUCCEEDED:
@@ -249,6 +244,8 @@ static void pm_evt_handler(pm_evt_t const * p_evt)
                          p_evt->params.conn_sec_succeeded.procedure);
 
             m_peer_id = p_evt->peer_id;
+
+            memset(&m_ble_db_discovery, 0, sizeof(m_ble_db_discovery));
             err_code  = ble_db_discovery_start(&m_ble_db_discovery, p_evt->conn_handle);
             APP_ERROR_CHECK(err_code);
 
@@ -355,16 +352,6 @@ static void pm_evt_handler(pm_evt_t const * p_evt)
 }
 
 
-/**@brief Function for handling the Current Time Service errors.
- *
- * @param[in]  nrf_error  Error code containing information about what went wrong.
- */
-static void current_time_error_handler(uint32_t nrf_error)
-{
-    APP_ERROR_HANDLER(nrf_error);
-}
-
-
 /**@brief Function for handling the security request timer time-out.
  *
  * @details This function will be called each time the security request timer expires.
@@ -386,94 +373,12 @@ static void sec_req_timeout_handler(void * p_context)
         if (!status.encrypted)
         {
             err_code = pm_conn_secure(m_cur_conn_handle, false);
-            APP_ERROR_CHECK(err_code);
+            if (err_code != NRF_ERROR_INVALID_STATE) {
+				APP_ERROR_CHECK(err_code);
+			}
         }
     }
 }
-
-static void update_time() {
-
-	if (m_cts.conn_handle != BLE_CONN_HANDLE_INVALID)
-	{
-		uint32_t err_code = ble_cts_c_current_time_read(&m_cts);
-		if (err_code == NRF_ERROR_NOT_FOUND)
-		{
-			NRF_LOG_ERROR("Current Time Service is not discovered.\r\n");
-		} else {
-			NRF_LOG_ERROR("Timeupdate request sent\r\n");
-
-		}
-	}
-
-
-}
-
-
-static void time_update_handler(void * p_context)
-{
-	update_time();
-
-}
-
-
-/**@brief Function for handling the Current Time Service errors.
- *
- * @param[in] p_evt  Event received from the Current Time Service client.
- */
-static void current_time_print(ble_cts_c_evt_t * p_evt)
-{
-    NRF_LOG_INFO("\r\nCurrent Time:\r\n");
-    NRF_LOG_INFO("\r\nDate:\r\n");
-
-//    NRF_LOG_INFO("\tDay of week   %s\r\n", (uint32_t)day_of_week[p_evt->
-//                                                         params.
-//                                                         current_time.
-//                                                         exact_time_256.
-//                                                         day_date_time.
-//                                                         day_of_week]);
-
-//    if (p_evt->params.current_time.exact_time_256.day_date_time.date_time.day == 0)
-//    {
-//        NRF_LOG_INFO("\tDay of month  Unknown\r\n");
-//    }
-//    else
-//    {
-//        NRF_LOG_INFO("\tDay of month  %i\r\n",
-//                       p_evt->params.current_time.exact_time_256.day_date_time.date_time.day);
-//    }
-//
-//    NRF_LOG_INFO("\tMonth of year %s\r\n",
-//    (uint32_t)month_of_year[p_evt->params.current_time.exact_time_256.day_date_time.date_time.month]);
-//    if (p_evt->params.current_time.exact_time_256.day_date_time.date_time.year == 0)
-//    {
-//        NRF_LOG_INFO("\tYear          Unknown\r\n");
-//    }
-//    else
-//    {
-//        NRF_LOG_INFO("\tYear          %i\r\n",
-//                       p_evt->params.current_time.exact_time_256.day_date_time.date_time.year);
-//    }
-    NRF_LOG_FLUSH();
-    NRF_LOG_INFO("\r\nTime:\r\n");
-    NRF_LOG_INFO("\tHours     %i\r\n",
-                   p_evt->params.current_time.exact_time_256.day_date_time.date_time.hours);
-    NRF_LOG_FLUSH();
-    NRF_LOG_INFO("\tMinutes   %i\r\n",
-                   p_evt->params.current_time.exact_time_256.day_date_time.date_time.minutes);
-    NRF_LOG_FLUSH();
-    NRF_LOG_INFO("\tSeconds   %i\r\n",
-                   p_evt->params.current_time.exact_time_256.day_date_time.date_time.seconds);
-    NRF_LOG_FLUSH();
-
-    NRF_LOG_ERROR("Time updated :-)\r\n");
-    app.timekeeper.setTime(p_evt->params.current_time.exact_time_256.day_date_time.date_time.seconds,
-    		p_evt->params.current_time.exact_time_256.day_date_time.date_time.minutes,
-			p_evt->params.current_time.exact_time_256.day_date_time.date_time.hours,
-			p_evt->params.current_time.exact_time_256.day_date_time.date_time.day,
-			p_evt->params.current_time.exact_time_256.day_date_time.date_time.month,
-			p_evt->params.current_time.exact_time_256.day_date_time.date_time.year);
-}
-
 
 /**@brief Function for the timer initialization.
  *
@@ -483,8 +388,7 @@ static void timers_init(void)
 {
     uint32_t err_code;
 
-    // TODO
-    // Initialize timer module, making it use the scheduler
+    // Initialize timer module, making it NOT use the scheduler
     APP_TIMER_APPSH_INIT(APP_TIMER_PRESCALER, APP_TIMER_OP_QUEUE_SIZE, false);
 
     // Create security request timer.
@@ -493,66 +397,10 @@ static void timers_init(void)
                                 sec_req_timeout_handler);
     APP_ERROR_CHECK(err_code);
 
-    err_code = app_timer_create(&m_time_timer_id,
-                                APP_TIMER_MODE_SINGLE_SHOT,
-								time_update_handler);
-    APP_ERROR_CHECK(err_code);
+    // CTS timer init
+	cts_timers_init();
 }
 
-
-/**@brief Function for handling the Current Time Service client events.
- *
- * @details This function will be called for all events in the Current Time Service client that
- *          are passed to the application.
- *
- * @param[in] p_evt Event received from the Current Time Service client.
- */
-static void on_cts_c_evt(ble_cts_c_t * p_cts, ble_cts_c_evt_t * p_evt)
-{
-    uint32_t err_code;
-
-    switch (p_evt->evt_type)
-    {
-        case BLE_CTS_C_EVT_DISCOVERY_COMPLETE:
-            NRF_LOG_INFO("Current Time Service discovered on server.\r\n");
-            err_code = ble_cts_c_handles_assign(&m_cts,
-                                                p_evt->conn_handle,
-                                                &p_evt->params.char_handles);
-            APP_ERROR_CHECK(err_code);
-
-            err_code = app_timer_start(m_time_timer_id, TIME_UPDATE_DELAY, NULL);
-            APP_ERROR_CHECK(err_code);
-            break;
-
-        case BLE_CTS_C_EVT_DISCOVERY_FAILED:
-            NRF_LOG_INFO("Current Time Service not found on server. \r\n");
-            // CTS not found in this case we just disconnect. There is no reason to stay
-            // in the connection for this simple app since it all wants is to interact with CT
-            if (p_evt->conn_handle != BLE_CONN_HANDLE_INVALID)
-            {
-                err_code = sd_ble_gap_disconnect(p_evt->conn_handle,
-                                                 BLE_HCI_REMOTE_USER_TERMINATED_CONNECTION);
-                APP_ERROR_CHECK(err_code);
-            }
-            break;
-
-        case BLE_CTS_C_EVT_DISCONN_COMPLETE:
-            NRF_LOG_INFO("Disconnect Complete.\r\n");
-            break;
-
-        case BLE_CTS_C_EVT_CURRENT_TIME:
-            NRF_LOG_INFO("Current Time received.\r\n");
-            current_time_print(p_evt);
-            break;
-
-        case BLE_CTS_C_EVT_INVALID_TIME:
-            NRF_LOG_INFO("Invalid Time received.\r\n");
-            break;
-
-        default:
-            break;
-    }
-}
 
 
 /**@brief Function for the GAP initialization.
@@ -589,13 +437,12 @@ static void gap_params_init(void)
  */
 static void services_init(void)
 {
-    uint32_t         err_code;
-    ble_cts_c_init_t cts_init_obj;
+    // init client services
+	ancs_services_init();
+	cts_services_init();
 
-    cts_init_obj.evt_handler   = on_cts_c_evt;
-    cts_init_obj.error_handler = current_time_error_handler;
-    err_code                   = ble_cts_c_init(&m_cts, &cts_init_obj);
-    APP_ERROR_CHECK(err_code);
+	// init DFU
+	dfu_init();
 }
 
 
@@ -684,28 +531,10 @@ static void sys_evt_dispatch(uint32_t sys_evt)
  */
 static void db_disc_handler(ble_db_discovery_evt_t * p_evt)
 {
-    ble_cts_c_on_db_disc_evt(&m_cts, p_evt);
+	cts_db_disc_handler(p_evt);
+	ancs_db_disc_handler(p_evt);
 }
 
-
-/**@brief Function for putting the chip into sleep mode.
- *
- * @note This function will not return.
- */
-static void sleep_mode_enter(void)
-{
-    uint32_t err_code = bsp_indication_set(BSP_INDICATE_IDLE);
-
-    APP_ERROR_CHECK(err_code);
-
-//    // Prepare wakeup buttons.
-//    err_code = bsp_btn_ble_sleep_mode_prepare();
-//    APP_ERROR_CHECK(err_code);
-//
-//    // Go to system-off mode (this function will not return; wakeup will cause a reset).
-//    err_code = sd_power_system_off();
-//    APP_ERROR_CHECK(err_code);
-}
 
 
 /**@brief Function for handling advertising events.
@@ -722,32 +551,23 @@ static void on_adv_evt(ble_adv_evt_t ble_adv_evt)
     {
         case BLE_ADV_EVT_FAST:
             NRF_LOG_INFO("Fast advertising\r\n");
-            err_code = bsp_indication_set(BSP_INDICATE_ADVERTISING);
-            APP_ERROR_CHECK(err_code);
             break;
 
         case BLE_ADV_EVT_SLOW:
             NRF_LOG_INFO("Slow advertising\r\n");
-            err_code = bsp_indication_set(BSP_INDICATE_ADVERTISING_SLOW);
-            APP_ERROR_CHECK(err_code);
             break;
 
         case BLE_ADV_EVT_FAST_WHITELIST:
             NRF_LOG_INFO("Fast advertising with WhiteList\r\n");
-            err_code = bsp_indication_set(BSP_INDICATE_ADVERTISING_WHITELIST);
-            APP_ERROR_CHECK(err_code);
             break;
 
         case BLE_ADV_EVT_SLOW_WHITELIST:
             NRF_LOG_INFO("Slow advertising with WhiteList\r\n");
-            err_code = bsp_indication_set(BSP_INDICATE_ADVERTISING_WHITELIST);
-            APP_ERROR_CHECK(err_code);
             err_code = ble_advertising_restart_without_whitelist();
             APP_ERROR_CHECK(err_code);
             break;
 
         case BLE_ADV_EVT_IDLE:
-            sleep_mode_enter();
             break;
 
         case BLE_ADV_EVT_WHITELIST_REQUEST:
@@ -789,20 +609,22 @@ static void on_ble_evt(ble_evt_t * p_ble_evt)
     {
         case BLE_GAP_EVT_CONNECTED:
             NRF_LOG_INFO("Connected.\r\n");
-//            err_code = bsp_indication_set(BSP_INDICATE_CONNECTED);
-//            APP_ERROR_CHECK(err_code);
+			
             m_cur_conn_handle = p_ble_evt->evt.gap_evt.conn_handle;
-            err_code = app_timer_start(m_sec_req_timer_id, SECURITY_REQUEST_DELAY, NULL);
+            
+			err_code = app_timer_start(m_sec_req_timer_id, SECURITY_REQUEST_DELAY, NULL);
             APP_ERROR_CHECK(err_code);
             break; // BLE_GAP_EVT_CONNECTED
 
         case BLE_GAP_EVT_DISCONNECTED:
             NRF_LOG_INFO("Disconnected.\r\n");
             m_cur_conn_handle = BLE_CONN_HANDLE_INVALID;
-            if (p_ble_evt->evt.gap_evt.conn_handle == m_cts.conn_handle)
-            {
-                m_cts.conn_handle = BLE_CONN_HANDLE_INVALID;
-            }
+			
+            err_code = app_timer_stop(m_sec_req_timer_id);
+		    APP_ERROR_CHECK(err_code);
+			
+		    connHandleRemoveCTS(p_ble_evt);
+		    connHandleRemoveANCS(p_ble_evt);
 
             if (m_is_wl_changed)
             {
@@ -851,57 +673,6 @@ static void on_ble_evt(ble_evt_t * p_ble_evt)
 }
 
 
-/**@brief Function for handling events from the BSP module.
- *
- * @param[in]   event   Event generated by button press.
- */
-void bsp_event_handler(bsp_event_t event)
-{
-    uint32_t err_code;
-
-    switch (event)
-    {
-        case BSP_EVENT_SLEEP:
-            sleep_mode_enter();
-            break;
-
-        case BSP_EVENT_DISCONNECT:
-            err_code = sd_ble_gap_disconnect(m_cur_conn_handle,
-                                             BLE_HCI_REMOTE_USER_TERMINATED_CONNECTION);
-            if (err_code != NRF_ERROR_INVALID_STATE)
-            {
-                APP_ERROR_CHECK(err_code);
-            }
-            break;
-
-        case BSP_EVENT_WHITELIST_OFF:
-            if (m_cts.conn_handle == BLE_CONN_HANDLE_INVALID)
-            {
-                err_code = ble_advertising_restart_without_whitelist();
-                if (err_code != NRF_ERROR_INVALID_STATE)
-                {
-                    APP_ERROR_CHECK(err_code);
-                }
-            }
-            break;
-
-        case BSP_EVENT_KEY_0:
-            if (m_cts.conn_handle != BLE_CONN_HANDLE_INVALID)
-            {
-                err_code = ble_cts_c_current_time_read(&m_cts);
-                if (err_code == NRF_ERROR_NOT_FOUND)
-                {
-                    NRF_LOG_INFO("Current Time Service is not discovered.\r\n");
-                }
-            }
-            break;
-
-        default:
-            // No implementation needed.
-            break;
-    }
-}
-
 
 /**@brief Function for dispatching a BLE stack event to all modules with a BLE stack event handler.
  *
@@ -915,12 +686,20 @@ static void ble_evt_dispatch(ble_evt_t * p_ble_evt)
     /** The Connection state module has to be fed BLE events in order to function correctly
      * Remember to call ble_conn_state_on_ble_evt before calling any ble_conns_state_* functions. */
     ble_conn_state_on_ble_evt(p_ble_evt);
+
     pm_on_ble_evt(p_ble_evt);
     ble_db_discovery_on_ble_evt(&m_ble_db_discovery, p_ble_evt);
-    bsp_btn_ble_on_ble_evt(p_ble_evt);
+
     on_ble_evt(p_ble_evt);
     ble_conn_params_on_ble_evt(p_ble_evt);
-    ble_cts_c_on_ble_evt(&m_cts, p_ble_evt);
+	
+    // BLE services
+    cts_ble_evt_dispatch(p_ble_evt);
+	ancs_ble_evt_dispatch(p_ble_evt);
+
+	// DFU
+	ble_evt_dfu(p_ble_evt);
+	
     ble_advertising_on_ble_evt(p_ble_evt);
 }
 
@@ -950,6 +729,8 @@ static void ble_stack_init(void)
                                                     PERIPHERAL_LINK_COUNT,
                                                     &ble_enable_params);
     APP_ERROR_CHECK(err_code);
+	
+	ble_enable_params.common_enable_params.vs_uuid_count = VENDOR_SPECIFIC_UUID_COUNT;
 
     // Check the ram settings against the used number of links
     CHECK_RAM_START_ADDR(CENTRAL_LINK_COUNT, PERIPHERAL_LINK_COUNT);
@@ -1032,7 +813,14 @@ static void advertising_init()
 {
     uint32_t               err_code;
     ble_advdata_t          advdata;
+    ble_advdata_t          scanrsp;
     ble_adv_modes_config_t options;
+	
+	static ble_uuid_t m_adv_uuids[1]; /**< Universally unique service identifiers. */
+	advUUIDinitCTS(m_adv_uuids);
+	
+	static ble_uuid_t m_scan_uuids[1];
+	advUUIDinitANCS(m_scan_uuids);
 
     // Build and set advertising data
     memset(&advdata, 0, sizeof(advdata));
@@ -1040,8 +828,15 @@ static void advertising_init()
     advdata.name_type                = BLE_ADVDATA_FULL_NAME;
     advdata.include_appearance       = true;
     advdata.flags                    = BLE_GAP_ADV_FLAGS_LE_ONLY_LIMITED_DISC_MODE;
-    advdata.uuids_solicited.uuid_cnt = sizeof(m_adv_uuids) / sizeof(m_adv_uuids[0]);
+	advdata.uuids_complete.uuid_cnt  = 0;
+	advdata.uuids_complete.p_uuids   = 0;
+    advdata.uuids_solicited.uuid_cnt = 1;
     advdata.uuids_solicited.p_uuids  = m_adv_uuids;
+
+    memset(&scanrsp, 0, sizeof(scanrsp));
+
+    scanrsp.uuids_complete.uuid_cnt = sizeof(m_scan_uuids) / sizeof(m_scan_uuids[0]);
+    scanrsp.uuids_complete.p_uuids  = m_scan_uuids;
 
     memset(&options, 0, sizeof(options));
     options.ble_adv_whitelist_enabled = true;
@@ -1052,10 +847,26 @@ static void advertising_init()
     options.ble_adv_slow_interval     = APP_ADV_SLOW_INTERVAL;
     options.ble_adv_slow_timeout      = APP_ADV_SLOW_TIMEOUT;
 
-    err_code = ble_advertising_init(&advdata, NULL, &options, on_adv_evt, NULL);
+    err_code = ble_advertising_init(&advdata, &scanrsp, &options, on_adv_evt, NULL);
     APP_ERROR_CHECK(err_code);
 }
 
+/**@brief Function for initializing buttons and LEDs.
+ *
+ * @param[out] p_erase_bonds  True if the clear bonds button was pressed to wake the application up.
+ */
+static void buttons_leds_init(bool * p_erase_bonds) {
+
+	bsp_event_t startup_event;
+
+	uint32_t ret = bsp_init(BSP_INIT_LED | BSP_INIT_BUTTONS, APP_TIMER_TICKS(100, APP_TIMER_PRESCALER), bsp_event_handler);
+	APP_ERROR_CHECK(ret);
+
+	ret = bsp_btn_ble_init(NULL, &startup_event);
+	APP_ERROR_CHECK(ret);
+
+	*p_erase_bonds = (startup_event == BSP_EVENT_CLEAR_BONDING_DATA);
+}
 
 /**
  * @brief Database discovery collector initialization.
@@ -1067,6 +878,13 @@ static void db_discovery_init(void)
     APP_ERROR_CHECK(err_code);
 }
 
+/**
+ * @brief WDT events handler.
+ */
+static void wdt_event_handler(void)
+{
+    // empty function
+}
 
 /**@brief Function for the power manager.
  */
@@ -1082,8 +900,16 @@ static void power_manage(void)
  */
 int main(void)
 {
-    bool       erase_bonds = true;
+    bool       erase_bonds = false;
     ret_code_t err_code;
+
+    //Configure WDT.
+    nrf_drv_wdt_config_t config = NRF_DRV_WDT_DEAFULT_CONFIG;
+    err_code = nrf_drv_wdt_init(&config, wdt_event_handler);
+    APP_ERROR_CHECK(err_code);
+    err_code = nrf_drv_wdt_channel_alloc(&m_channel_id);
+    APP_ERROR_CHECK(err_code);
+    nrf_drv_wdt_enable();
 
     // log init
     err_code = NRF_LOG_INIT(NULL);
@@ -1094,6 +920,7 @@ int main(void)
     app.init();
 
     //buttons_leds_init(&erase_bonds);
+
     ble_stack_init();
     peer_manager_init(erase_bonds);
     if (erase_bonds == true)
@@ -1103,12 +930,15 @@ int main(void)
     db_discovery_init();
     scheduler_init();
     gap_params_init();
-    advertising_init();
+
     services_init();
+
+    advertising_init();
+
     conn_params_init();
 
     // Start execution
-    NRF_LOG_INFO("CTS Start!\r\n");
+    NRF_LOG_INFO("Main start!\r\n");
     NRF_LOG_FLUSH();
     advertising_start();
 
@@ -1119,10 +949,13 @@ int main(void)
 		app.sm_run();
 		
 		//app_sched_execute();
-		if (NRF_LOG_PROCESS() == false)
-		{
-			power_manage();
-		}
+		NRF_LOG_FLUSH();
+
+		// manage auto-sleep
+		power_manage();
+
+		// feed watchdog
+		nrf_drv_wdt_channel_feed(m_channel_id);
     }
 }
 

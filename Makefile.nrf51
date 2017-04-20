@@ -35,6 +35,7 @@ CFLAGS += -DSWI_DISABLE0
 #CFLAGS += -D__STACK_SIZE=0
 CFLAGS += -DNRF51422
 CFLAGS += -DNRF_SD_BLE_API_VERSION=2
+CFLAGS += -DNRF_DFU_SETTINGS_VERSION=1
 CFLAGS += -DARDUINO=164
 CFLAGS += -DDEBUG
 CFLAGS += -mcpu=cortex-m0
@@ -68,7 +69,7 @@ LDFLAGS += -Wl,--gc-sections
 LDFLAGS += --specs=nano.specs -lc -lnosys
 
 
-.PHONY: $(TARGETS) default all force clean help flash flash_softdevice
+.PHONY: $(TARGETS) default all force clean help flash flash_softdevice dfu
 
 # Default target - first one defined
 default: nrf51422_xxac
@@ -77,6 +78,10 @@ default: nrf51422_xxac
 help:
 	@echo following targets are available:
 	@echo 	nrf51422_xxac
+	
+dfu:
+	nrfutil --verbose pkg generate --hw-version 51 --sd-req 0x87 --application-version 1 --application $(OUTPUT_DIRECTORY)/nrf51422_xxac.hex --key-file $(SDK_ROOT)/vault/priv.pem s130_watch.zip
+
 
 TEMPLATE_PATH := $(SDK_ROOT)/components/toolchain/gcc
 

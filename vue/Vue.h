@@ -10,25 +10,28 @@
 
 #include "TimeKeeper.h"
 #include "LS013B7DH03.h"
-#include "SPO2HRM.h"
-#include "app.h"
-
-#define VUE_SPI_SS_PIN 4
 
 
-class Vue : public TSharpMem {
+class Vue {
 public:
 	Vue();
+	void begin();
+	void run();
+	void triggerRefresh() {_needsRefresh=true;};
+	void performTransition();
 
 	void setTK(TimeKeeper *TimeKeeper);
-	void setCurrent(float current) {_current = current;}
 
-	void LowPowerScreen(float);
-	void SPO2Screen(SPO2HRM*);
+	void testdrawrect(void);
 
 private:
+	TSharpMem sharp;
 	TimeKeeper* _timekeeper;
-	float _current;
+	bool _isInTrans;
+	bool _needsRefresh;
+
+	void LowPowerScreen();
+	void SPO2Screen();
 };
 
 

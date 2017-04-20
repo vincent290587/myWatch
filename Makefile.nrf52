@@ -29,8 +29,7 @@ CFLAGS += -DNRF52
 CFLAGS += -DNRF52_PAN_64
 CFLAGS += -DSOFTDEVICE_PRESENT
 CFLAGS += -DNRF_LOG_ENABLED=1
-#CFLAGS += -DBOARD_PCA10036
-CFLAGS += -DBOARD_RAYTAK52
+CFLAGS += -DBOARD_PCA10036
 CFLAGS += -DNRF52832
 CFLAGS += -DNRF52_PAN_12
 CFLAGS += -DNRF52_PAN_58
@@ -44,6 +43,7 @@ CFLAGS += -DCONFIG_GPIO_AS_PINRESET
 CFLAGS += -DBLE_STACK_SUPPORT_REQD
 CFLAGS += -DNRF52_PAN_15
 CFLAGS += -DNRF_SD_BLE_API_VERSION=3
+CFLAGS += -DNRF_DFU_SETTINGS_VERSION=1
 CFLAGS += -DSWI_DISABLE0
 CFLAGS += -DNRF52_PAN_20
 CFLAGS += -DNRF52_PAN_55
@@ -96,7 +96,7 @@ LDFLAGS += -Wl,--gc-sections
 LDFLAGS += --specs=nano.specs -lc -lnosys
 
 
-.PHONY: $(TARGETS) default all clean help flash flash_softdevice
+.PHONY: $(TARGETS) default all clean help flash flash_softdevice dfu
 
 # Default target - first one defined
 default: nrf52832_xxaa
@@ -105,6 +105,9 @@ default: nrf52832_xxaa
 help:
 	@echo following targets are available:
 	@echo 	nrf52832_xxaa
+	
+dfu:
+	nrfutil --verbose pkg generate --hw-version 52 --sd-req 0x91 --application-version 1 --application $(OUTPUT_DIRECTORY)/nrf52832_xxaa.hex --key-file $(SDK_ROOT)/vault/priv.pem s132_watch.zip  
 
 TEMPLATE_PATH := $(SDK_ROOT)/components/toolchain/gcc
 
@@ -126,3 +129,4 @@ flash_softdevice:
 
 erase:
 	nrfjprog --eraseall -f nrf52
+	

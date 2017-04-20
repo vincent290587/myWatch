@@ -16,46 +16,21 @@
 #include "I2C.h"
 #include "SPI.h"
 
-#include "Serial.h"
-
-#include "ADPS9960.h"
-#include "MAX30102.h"
-#include "MS5637.h"
-#include "FXOS8700.h"
-#include "SPO2HRM.h"
-#include "STC3100.h"
-#include "VEML6075.h"
-#include "WS2812B.h"
-
 #include "app.h"
+#include "Global.h"
 
+#define LED_EN_PIN                     1
 
 #define RUN_DELAY                      100
 #define APP_DELAY                      APP_TIMER_TICKS(RUN_DELAY, APP_TIMER_PRESCALER) // ticks from ms
 APP_TIMER_DEF(m_app_timer);
 
-//const nrf_drv_timer_t TIMER_APP = NRF_DRV_TIMER_INSTANCE(1);
-
 
 APP* APP::pApp = 0;
 
 
-//MMA8451_n0m1 acc;
-FXOS8700 acc;
-MS5637 baro;
-Serial serial;
-APDS9960 adps;
-SPO2HRM spo_hrm;
-STC3100 stc;
-VEML6075 veml;
-WS2812B neopix(20);
+using namespace mvc;
 
-//static void app_timeout_handler(nrf_timer_event_t event_type, void* p_context) {
-////static void app_timeout_handler(void* p_context) {
-//
-//	APP::pApp->bigTick = true;
-//	APP::pApp->timekeeper.increment_100millis();
-//}
 
 static void dummy_timeout_handler(void* p_context) {
 	APP::pApp->bigTick = true;
@@ -64,32 +39,17 @@ static void dummy_timeout_handler(void* p_context) {
 
 void init_timers_millis() {
 
-	// Create security request timer.
 	ret_code_t ret = app_timer_create(&m_app_timer, APP_TIMER_MODE_REPEATED, dummy_timeout_handler);
 	APP_ERROR_CHECK(ret);
 
 	ret = app_timer_start(m_app_timer, APP_DELAY, NULL);
 	APP_ERROR_CHECK(ret);
-
-
-//	uint32_t time_ticks, err_code;
-//	nrf_drv_timer_config_t timer_cfg = NRF_DRV_TIMER_DEFAULT_CONFIG;
-//
-//	err_code = nrf_drv_timer_init(&TIMER_APP, &timer_cfg, app_timeout_handler);
-//	APP_ERROR_CHECK(err_code);
-//
-//	time_ticks = nrf_drv_timer_ms_to_ticks(&TIMER_APP, RUN_DELAY);
-//
-//	nrf_drv_timer_extended_compare( &TIMER_APP, NRF_TIMER_CC_CHANNEL0, time_ticks, NRF_TIMER_SHORT_COMPARE0_CLEAR_MASK, true);
-//
-//	nrf_drv_timer_enable(&TIMER_APP);
-
 }
 
 APP::APP() {
 	pApp = this;
 	bigTick = false;
-	_state = SPORT;
+	state = LOW_POWER;
 }
 
 
