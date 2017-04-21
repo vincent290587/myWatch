@@ -9,6 +9,7 @@
 #include "Arduino.h"
 
 #include "MAX30102.h"
+#include "TimeKeeper.h"
 
 #define NRF_LOG_MODULE_NAME "MAX"
 #include "nrf_log.h"

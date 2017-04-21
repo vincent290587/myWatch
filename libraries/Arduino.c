@@ -56,58 +56,7 @@ void delay(uint32_t p_time) {
 
 }
 
-// fonction externalisee au timekeeper
-//uint32_t millis() {
-//
-//	static uint32_t nb_rollover = 0;
-//	static uint32_t last_count = 0;
-//	uint32_t cur_count = app_timer_cnt_get();
-//
-//	if (cur_count < last_count) {
-//		nb_rollover += 1;
-//		NRF_LOG_ERROR("Rollover !\r\n");
-//	}
-//
-//	uint32_t rtc1_freq = APP_TIMER_CLOCK_FREQ / (APP_TIMER_PRESCALER + 1 );
-//
-//	uint64_t millis = cur_count;
-//	millis *= 1000;
-//	millis /= rtc1_freq;
-//
-//	//NRF_LOG_INFO("Elapsed counts: %u\r\n", cur_count);
-//
-//	millis += (nb_rollover * 0xFFFFFF / rtc1_freq) * 1000;
-//
-//	last_count = cur_count;
-//
-//	return (uint32_t)millis;
-//}
 
-uint32_t micros() {
-
-	static uint32_t nb_rollover = 0;
-	static uint32_t last_count = 0;
-	uint32_t cur_count = app_timer_cnt_get();
-
-	if (cur_count < last_count) {
-		nb_rollover += 1;
-		NRF_LOG_ERROR("Rollover !\r\n");
-	}
-
-	uint32_t rtc1_freq = APP_TIMER_CLOCK_FREQ / (APP_TIMER_PRESCALER + 1 );
-
-	uint64_t micros = cur_count;
-	micros *= 100;
-	micros /= rtc1_freq;
-
-	//NRF_LOG_INFO("Elapsed counts: %u\r\n", cur_count);
-
-	micros += (nb_rollover * 0xFFFFFF / rtc1_freq) * 100;
-
-	last_count = cur_count;
-
-	return (uint32_t)micros;
-}
 
 void pinMode(uint8_t p_pin, uint8_t p_mode) {
 
@@ -197,13 +146,15 @@ int percentageBatt (float tensionValue) {
 
   float fp_ = 0.;
 
-  if (tensionValue > 3.78) {
-    fp_ = 536.34*tensionValue*tensionValue*tensionValue-6723.8*tensionValue*tensionValue;
-    fp_ += 28186*tensionValue-39402;
+  if (tensionValue > 4.2) {
+	  fp_ = 100;
+  } else if (tensionValue > 3.78) {
+	  fp_ = 536.34*tensionValue*tensionValue*tensionValue-6723.8*tensionValue*tensionValue;
+	  fp_ += 28186*tensionValue-39402;
   } else if (tensionValue > 2.) {
-    fp_ = pow(10, -11.4)*pow(tensionValue, 22.315);
+	  fp_ = pow(10, -11.4)*pow(tensionValue, 22.315);
   } else {
-    fp_ = 0;
+	  fp_ = 0;
   }
 
   return (int)fp_;
@@ -243,3 +194,15 @@ float regFenLim(float val_, float b1_i, float b1_f, float b2_i, float b2_f) {
   return res;
 }
 
+//int regFenLim(float val_, int b1_i, int b1_f, int b2_i, int b2_f) {
+//
+//  float x, res;
+//  // calcul x
+//  x = (val_ - b1_i) / (b1_f - b1_i);
+//
+//  // calcul valeur: x commun
+//  res = x * (b2_f - b2_i) + b2_i;
+//  if (res < min(b2_i,b2_f)) res = min(b2_i,b2_f);
+//  if (res > max(b2_i,b2_f)) res = max(b2_i,b2_f);
+//  return (int)res;
+//}

@@ -26,7 +26,6 @@ public:
 
 private:
 	uint32_t nbTicks;
-	uint8_t app_mode;
 
 	void sm_run();
 	void run_low_power();

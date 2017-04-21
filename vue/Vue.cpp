@@ -18,6 +18,7 @@
 
 using namespace mvc;
 
+
 Vue::Vue() {
 	_timekeeper = 0;
 	_isInTrans = false;
@@ -37,8 +38,7 @@ void Vue::LowPowerScreen() {
 	sharp.setTextColor(BLACK);
 
 	// current
-	sharp.drawRect(3,3,60,25, BLACK);
-
+	sharp.drawRect(3,3,64,25, BLACK);
 	sharp.setTextSize(2);
 	sharp.setCursor(5, 5);
 	sharp.print(stc.getCurrent(), 1);
@@ -61,6 +61,22 @@ void Vue::LowPowerScreen() {
 	sharp.drawCircle(64, 105, 15, BLACK);
 	rotate_point(acc.computeNorthDirection(), 64, 105, 64, 90, x1, y1);
 	sharp.drawLine(64, 105, x1, y1, BLACK);
+
+	// UV
+	sharp.fillRect(10, 90, 12, 30, BLACK);
+	int UVlevel = regFenLim(veml.getUVIndex(), 0., 15., 28., 1.);
+	if (UVlevel > 1) {
+		sharp.fillRect(11, 91, 10, UVlevel, WHITE);
+	}
+
+	// Batt
+	int perc = percentageBatt(stc.getVoltage());
+	sharp.fillRect(120, 10, 3, 6, BLACK); // petit bout
+	sharp.drawRect(90, 7, 30, 12, BLACK); // forme exterieure
+	if (perc < 98) {
+		int Blevel = regFenLim(perc, 0., 100., 1., 26.);
+		sharp.fillRect(92, 9, Blevel, 8, BLACK);
+	}
 
 }
 
@@ -130,6 +146,8 @@ void Vue::run() {
 			break;
 		}
 
+		displayNotification();
+
 		// refresh the hardware
 		sharp.refresh();
 
@@ -165,4 +183,56 @@ void Vue::performTransition() {
 	// TODO
 	_needsRefresh = false;
 	_isInTrans = false;
+}
+
+void Vue::addNotification(uint8_t type_, const char *title_, const char *msg_) {
+
+		notif.timetag = 0;
+		notif.isNew = true;
+
+		notif.type = type_;
+		notif.title = title_;
+		notif.msg = msg_;
+
+}
+
+
+void Vue::addNotification(SNotif* notif_) {
+
+	if (!notif_) return;
+
+	notif.timetag = 0;
+	notif.isNew = true;
+
+	notif.type = notif_->type;
+	notif.title = notif_->title;
+	notif.msg = notif_->msg;
+
+	//NRF_LOG_INFO("Ajout notif: %s\r\n", (uint32_t)notif.msg.c_str());
+}
+
+void Vue::displayNotification() {
+
+	if (notif.isNew == true) {
+		notif.timetag = millis();
+		notif.isNew = false;
+	}
+
+	if (notif.timetag &&
+			millis() - notif.timetag < NOTIFICATION_PERSISTENCE) {
+
+		sharp.fillRect(0, 0, LCDWIDTH, LCDHEIGHT / 2+2, WHITE);
+		sharp.drawRect(0, 0, LCDWIDTH, LCDHEIGHT / 2, BLACK);
+		sharp.setCursor(5, 5);
+		sharp.setTextSize(2);
+		sharp.setTextColor(CLR_NRM);
+		if (notif.type != 0) {
+			sharp.print(notif.title);
+			sharp.println(":");
+		}
+		sharp.print(notif.msg);
+
+	}
+
+
 }

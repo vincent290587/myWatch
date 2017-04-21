@@ -946,7 +946,7 @@ int main(void)
     for (;;)
     {
 		// run user application
-		app.sm_run();
+		app.run();
 		
 		//app_sched_execute();
 		NRF_LOG_FLUSH();

@@ -53,10 +53,6 @@ uint32_t max(uint32_t val1, uint32_t val2);
 
 void delay(uint32_t p_time);
 
-uint32_t millis();
-
-uint32_t micros();
-
 void pinMode(uint8_t p_pin, uint8_t p_mode);
 
 uint32_t digitalRead(uint8_t p_pin);
@@ -79,5 +75,8 @@ float regFenLim(float val_, float b1_i, float b1_f, float b2_i, float b2_f);
 #ifdef __cplusplus
 }
 #endif
+
+//int regFenLim(float val_, int b1_i, int b1_f, int b2_i, int b2_f);
+
 
 #endif /* LIBRARIES_ARDUINO_H_ */

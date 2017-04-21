@@ -6,6 +6,9 @@
  */
 
 #include <MotionController.h>
+#include "Global.h"
+
+using namespace mvc;
 
 MotionController::MotionController() {
 
@@ -61,18 +64,24 @@ void MotionController::notify(Action act_, Direction dir_) {
 		_last_action = DTAP;
 		_last_action_dir = dir_;
 		_last_action_time = millis();
+
+		neopix.setNotify(WS_YELLOW, 1);
 		break;
 
 	case SHAKE:
 		_last_action = SHAKE;
 		_last_action_dir = dir_;
 		_last_action_time = millis();
+
+		neopix.setNotify(WS_YELLOW, 1);
 		break;
 
 	case SWIPE:
 		_last_action = SWIPE;
 		_last_action_dir = dir_;
 		_last_action_time = millis();
+
+		neopix.setNotify(WS_YELLOW, 1);
 		break;
 
 	case NONE:
@@ -109,6 +118,8 @@ void MotionController::runController(void) {
 		_last_action = STAP;
 		_last_action_dir = _last_stap_dir;
 		_last_action_time = millis();
+
+		neopix.setNotify(WS_YELLOW, 1);
 		// reset
 		_nb_single_tap = 0;
 		_last_stap_time = 0;

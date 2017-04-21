@@ -61,8 +61,12 @@ void APP::init() {
 	init_timers_millis();
 
 	// light init
+	neopix.setColor(0, 0, 0);
 	neopix.clear();
-
+// TODO remove
+#ifndef NRF51
+	return;
+#endif
 	////////////////////////////////////////////////////
 
 	// spi init
@@ -120,14 +124,14 @@ void APP::run() {
 
 void APP::switchMode(uint8_t new_mode) {
 
-	switch (app_mode) {
+	switch (state) {
 	case LOW_POWER:
 		if (new_mode==SPORT) {
 			nrf_gpio_pin_set(LED_EN_PIN);
 			spo_hrm.start_measurement();
 
 			// mode change
-			app_mode = SPORT;
+			state = SPORT;
 		}
 		break;
 	case SPORT:
@@ -137,7 +141,7 @@ void APP::switchMode(uint8_t new_mode) {
 			nrf_gpio_pin_clear(LED_EN_PIN);
 
 			// mode change
-			app_mode = LOW_POWER;
+			state = LOW_POWER;
 		}
 		break;
 	}
@@ -151,11 +155,6 @@ void APP::run_very_low_power() {
 
 
 void APP::run_low_power() {
-
-	// disable LDO 2
-	nrf_gpio_pin_clear(LED_EN_PIN);
-
-	neopix.setColor(0, 0, 0);
 
 	if (nbTicks == 1) {
 
@@ -182,11 +181,8 @@ void APP::run_low_power() {
 		vue.triggerRefresh();
 	}
 
-	// run at 10Hz without interrupts
+	// TODO run at 10Hz without interrupts
 	acc.update();
-
-	// update neopixel
-	neopix.show();
 
 }
 
@@ -230,6 +226,8 @@ void APP::sm_run() {
 
 		// run controller
 		control.run();
+		// run neopixel
+		neopix.run();
 
 		if (!nbTicks) {
 

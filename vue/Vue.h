@@ -11,6 +11,18 @@
 #include "TimeKeeper.h"
 #include "LS013B7DH03.h"
 
+#define NOTIFICATION_PERSISTENCE 3000
+
+class SNotif {
+  public:
+    SNotif() {};
+
+    bool isNew;
+    uint8_t type;
+    uint32_t timetag;
+    String title;
+    String msg;
+};
 
 class Vue {
 public:
@@ -20,11 +32,16 @@ public:
 	void triggerRefresh() {_needsRefresh=true;};
 	void performTransition();
 
+	void displayNotification();
+	void addNotification(uint8_t type_, const char *title_, const char *msg_);
+	void addNotification(SNotif *notif);
+
 	void setTK(TimeKeeper *TimeKeeper);
 
 	void testdrawrect(void);
 
 private:
+	SNotif notif;
 	TSharpMem sharp;
 	TimeKeeper* _timekeeper;
 	bool _isInTrans;

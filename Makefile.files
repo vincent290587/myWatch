@@ -12,6 +12,10 @@ SRC_FILES += \
   $(PROJ_DIR)/libraries/ADPS9960.cpp \
   $(PROJ_DIR)/libraries/FXOS8700.cpp \
   $(PROJ_DIR)/libraries/LS013B7DH03.cpp \
+  $(PROJ_DIR)/libraries/rbuffer/RingBuffer.cpp \
+  $(PROJ_DIR)/libraries/MAX30102/algorithm.cpp \
+  $(PROJ_DIR)/libraries/MAX30102/HRFilter.cpp \
+  $(PROJ_DIR)/libraries/MAX30102/MAX30102.cpp \
   $(PROJ_DIR)/libraries/MS5637.cpp \
   $(PROJ_DIR)/libraries/MMA8451.cpp \
   $(PROJ_DIR)/libraries/MotionController.cpp \
@@ -21,10 +25,7 @@ SRC_FILES += \
   $(PROJ_DIR)/libraries/STC3100.cpp \
   $(PROJ_DIR)/libraries/TimeKeeper.cpp \
   $(PROJ_DIR)/libraries/VEML6075.cpp \
-  $(PROJ_DIR)/libraries/MAX30102/algorithm.cpp \
-  $(PROJ_DIR)/libraries/MAX30102/HRFilter.cpp \
-  $(PROJ_DIR)/libraries/MAX30102/MAX30102.cpp \
-  $(PROJ_DIR)/libraries/rbuffer/RingBuffer.cpp \
+  $(PROJ_DIR)/libraries/WS2812B.cpp \
   $(PROJ_DIR)/vue/mathutils.cpp \
   $(PROJ_DIR)/vue/Controller.cpp \
   $(PROJ_DIR)/vue/Global.cpp \
