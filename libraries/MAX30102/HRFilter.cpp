@@ -34,7 +34,7 @@ float HRFilter::filter_cheb1(int32_t new_data) {
 	  vy1 = coarse;
 	  res = coarse;
 	  _learn++;
-  } else if (abs(coarse - res) > 5000) {
+  } else if (abs(coarse - res) > 50000) {
 	  vy1 = coarse;
 	  res = coarse;
 	  _learn = 0;

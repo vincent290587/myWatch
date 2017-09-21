@@ -16,7 +16,12 @@ public:
 	Controller();
 	void run();
 
+	uint32_t getLastActionTime() const {
+		return lastActionTime;
+	}
+
 private:
+	uint32_t lastActionTime=0;
 };
 
 

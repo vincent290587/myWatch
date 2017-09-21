@@ -44,7 +44,7 @@ APDS9960* APDS9960::pAPDS9960 = 0;
 void gestureISR(nrf_drv_gpiote_pin_t pin, nrf_gpiote_polarity_t polarity_) {
 	if (polarity_ == NRF_GPIOTE_POLARITY_HITOLO) {
 		APDS9960::pAPDS9960->gestureISRFlag = true;
-		NRF_LOG_ERROR("Gesture ISR 1\r\n")
+		//NRF_LOG_ERROR("Gesture ISR 1\r\n")
 	}
 }
 
@@ -65,6 +65,8 @@ APDS9960::APDS9960() : I2C_Device () {
 
 	gesture_state_ = 0;
 	gesture_motion_ = DIR_NONE;
+
+	pinIsInit = 0;
 }
 
 
@@ -192,14 +194,15 @@ bool APDS9960::init() {
 
 void APDS9960::run() {
 
+	// TODO check static
 	static uint8_t todo = false;
 
-	if (!todo && (gestureISRFlag == true)) {
-		if (this->isGestureAvailable()) {
+	if (gestureISRFlag == true || digitalRead(ADPS_INT_PIN)==LOW) {
+		if (!todo && this->isGestureAvailable()) {
 			NRF_LOG_ERROR("Gesture available ;-) !\r\n");
 			todo = true;
-			gestureISRFlag = false;
 		}
+		gestureISRFlag = false;
 	}
 
 	if (todo) {
@@ -416,6 +419,9 @@ bool APDS9960::enableGestureSensor(bool interrupts) {
 	 Set AUX to LED_BOOST_300
 	 Enable PON, WEN, PEN, GEN in ENABLE
 	 */
+	if (!enablePower()) {
+		return false;
+	}
 	resetGestureParameters();
 	if (!wireWriteDataByte(APDS9960_WTIME, 0xFF)) {
 		return false;
@@ -427,7 +433,6 @@ bool APDS9960::enableGestureSensor(bool interrupts) {
 		return false;
 	}
 	if (interrupts) {
-		// TODO
 		if (!setGestureIntEnable(1)) {
 			return false;
 		}
@@ -437,9 +442,6 @@ bool APDS9960::enableGestureSensor(bool interrupts) {
 		}
 	}
 	if (!setGestureMode(1)) {
-		return false;
-	}
-	if (!enablePower()) {
 		return false;
 	}
 	if (!setMode(WAIT, 1)) {
@@ -1988,7 +1990,8 @@ uint8_t APDS9960::getGestureIntEnable() {
  */
 bool APDS9960::setGestureIntEnable(uint8_t enable) {
 
-	if (enable==1) {
+	if (enable==1 && pinIsInit==0) {
+		pinIsInit = 1;
 		attachInterrupt(ADPS_INT_PIN, gestureISR);
 	}
 

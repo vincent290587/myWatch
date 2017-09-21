@@ -46,6 +46,8 @@ private:
 	int32_t heartRate; //heart rate value
 	int8_t validHeartRate; //indicator to show if the heart rate calculation is valid
 
+	uint32_t lastSampleTime;
+
 	HRFilter IRFilter;
 	HRFilter RedFilter;
 

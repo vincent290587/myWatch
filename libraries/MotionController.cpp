@@ -29,35 +29,38 @@ void MotionController::notify(Action act_, Direction dir_) {
 	// update action count
 	_action_der += 1;
 	if (_action_der > MAX_DERIVEE) {
-		_last_action_time = millis();
+		return;
 	}
 
 	// debounce
-	if (millis() - _last_action_time < DEBOUNCE_TIME) return;
+	if ((millis() - _last_action_time < DEBOUNCE_TIME)) return;
 
 	switch (act_) {
 	case STAP:
 		// need to wait to detect double taps
-		if (_last_stap_time &&
-				(millis() - _last_stap_time > 150) &&
-				(millis() - _last_stap_time < WINDOW_TIME) &&
-				((dir_ & _last_stap_dir) != 0)) {
+		if (_last_stap_time && _nb_single_tap == 1 &&
+				(millis() - _last_stap_time > 50) &&
+				(millis() - _last_stap_time < WINDOW_TIME)) {
 			// double tap
 			_last_action = DTAP;
 			// TODO determiner la vraie direction
 			_last_action_dir = dir_ & _last_action_dir;
 			_last_action_time = millis();
+
+			//vue.addNotification(1, "FXOS", "STAP => DTAP");
+
+			neopix.setNotify(WS_YELLOW, 1);
 			// reset
 			_nb_single_tap = 0;
 			_last_stap_time = 0;
 			_last_stap_dir = Or;
-		} else if (!_last_stap_time) {
-			// we take only the first tap time
+		} else {
+			// note the first tap timestamp
+			_nb_single_tap++;
+			_last_action_dir = dir_;
+			// we take the tap time
 			_last_stap_time = millis();
 		}
-		// we accumulate the directions of every single taps detected
-		_last_stap_dir = dir_ | _last_action_dir;
-		_nb_single_tap++;
 		break;
 
 	case DTAP:
@@ -65,7 +68,9 @@ void MotionController::notify(Action act_, Direction dir_) {
 		_last_action_dir = dir_;
 		_last_action_time = millis();
 
-		neopix.setNotify(WS_YELLOW, 1);
+		//vue.addNotification(1, "FXOS", "True DTAP");
+
+		neopix.setNotify(WS_VIOLET, 4);
 		break;
 
 	case SHAKE:
@@ -81,7 +86,7 @@ void MotionController::notify(Action act_, Direction dir_) {
 		_last_action_dir = dir_;
 		_last_action_time = millis();
 
-		neopix.setNotify(WS_YELLOW, 1);
+		neopix.setNotify(WS_ORANGE, 1);
 		break;
 
 	case NONE:
@@ -93,17 +98,30 @@ void MotionController::notify(Action act_, Direction dir_) {
 // must be called only once !!
 Action MotionController::getAction() {
 	Action res = _last_action;
+	if (_last_action != NONE) {
+		_last_action_perm = _last_action;
+	}
 	_last_action = NONE;
 	return res;
 }
 
 // Must be called only once !!
 Direction MotionController::getDirection() {
-	Direction res = (Direction)_last_action_dir;
+	Direction res = Direction(_last_action_dir);
 	_last_action_dir = Or;
 	return res;
 }
 
+// can be called infinitely
+Action MotionController::getLastAction() {
+	Action res = NONE;
+
+	if (millis() - _last_action_time <= 2000) {
+		res = _last_action_perm;
+	}
+
+	return res;
+}
 
 // needs to run at 10Hz
 void MotionController::runController(void) {
@@ -119,12 +137,15 @@ void MotionController::runController(void) {
 		_last_action_dir = _last_stap_dir;
 		_last_action_time = millis();
 
+		vue.addNotification(1, "FXOS", "STAP");
+
 		neopix.setNotify(WS_YELLOW, 1);
 		// reset
 		_nb_single_tap = 0;
 		_last_stap_time = 0;
 		_last_stap_dir = Or;
-	} else if (_last_stap_time &&
+
+	} else if ((_last_stap_time || _nb_single_tap) &&
 			(millis() - _last_stap_time > WINDOW_TIME)) {
 		// false detection
 		// -> reset

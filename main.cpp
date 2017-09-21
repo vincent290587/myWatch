@@ -75,7 +75,7 @@ using namespace mvc;
 #define DEVICE_NAME                     "myWatch"                                /**< Name of the device. Will be included in the advertising data. */
 #define APP_ADV_FAST_INTERVAL           0x0028                                      /**< Fast advertising interval (in units of 0.625 ms). The default value corresponds to 25 ms. */
 #define APP_ADV_SLOW_INTERVAL           0x0C80                                      /**< Slow advertising interval (in units of 0.625 ms). The default value corresponds to 2 seconds. */
-#define APP_ADV_SLOW_TIMEOUT            0                                         /**< The duration of the slow advertising period (in seconds). */
+#define APP_ADV_SLOW_TIMEOUT            3000                                         /**< The duration of the slow advertising period (in seconds). */
 #define APP_ADV_FAST_TIMEOUT            60                                          /**< The duration of the fast advertising period (in seconds). */
 
 #define APP_TIMER_OP_QUEUE_SIZE         5                                           /**< Size of timer operation queues. */
@@ -126,6 +126,7 @@ APP_TIMER_DEF(m_sec_req_timer_id); /**< Security request timer. */
 
 nrf_drv_wdt_channel_id m_channel_id;
 
+SNotif err_notif;
 
 void app_error_handler(uint32_t error_code, uint32_t line_num, const uint8_t *p_file_name) {
 
@@ -133,6 +134,24 @@ void app_error_handler(uint32_t error_code, uint32_t line_num, const uint8_t *p_
 
 	NRF_LOG_ERROR("Erreur: 0x%x ligne %u file %s !!\n", (unsigned int)error_code, (unsigned int)line_num, (uint32_t) p_file_name);
     NRF_LOG_FLUSH();
+
+    // notify user
+    neopix.setWeakNotify(WS_RED, 2);
+
+    static uint32_t millis_ = 0;
+    if (millis() - millis_ > 3000 || !millis_) {
+
+    	millis_ = millis();
+
+    	err_notif.type = 1;
+    	err_notif.title = String("Erreur 0x");
+    	err_notif.title += String(error_code, HEX);
+
+    	err_notif.msg = String((char*)p_file_name) + String(" / l.") + String(line_num);
+
+    	vue.addNotification(&err_notif);
+    }
+
 }
 
 
@@ -232,6 +251,8 @@ static void pm_evt_handler(pm_evt_t const * p_evt)
             NRF_LOG_INFO("Connected to a previously bonded device.\r\n");
 
             cts_timers_start();
+
+            neopix.setNotify(WS_BLUE, 6);
 			
 			//m_peer_id = p_evt->peer_id;
         } break;
@@ -389,7 +410,7 @@ static void timers_init(void)
     uint32_t err_code;
 
     // Initialize timer module, making it NOT use the scheduler
-    APP_TIMER_APPSH_INIT(APP_TIMER_PRESCALER, APP_TIMER_OP_QUEUE_SIZE, false);
+    APP_TIMER_APPSH_INIT(APP_TIMER_PRESCALER, APP_TIMER_OP_QUEUE_SIZE, true);
 
     // Create security request timer.
     err_code = app_timer_create(&m_sec_req_timer_id,
@@ -568,6 +589,11 @@ static void on_adv_evt(ble_adv_evt_t ble_adv_evt)
             break;
 
         case BLE_ADV_EVT_IDLE:
+        	if (!app.timekeeper.isNight()) {
+        		// on recommence a faire l'advertising
+        		uint32_t ret = ble_advertising_start(BLE_ADV_MODE_SLOW);
+        		APP_ERROR_CHECK(ret);
+        	}
             break;
 
         case BLE_ADV_EVT_WHITELIST_REQUEST:
@@ -851,6 +877,7 @@ static void advertising_init()
     APP_ERROR_CHECK(err_code);
 }
 
+#ifdef NRF52
 /**@brief Function for initializing buttons and LEDs.
  *
  * @param[out] p_erase_bonds  True if the clear bonds button was pressed to wake the application up.
@@ -867,6 +894,7 @@ static void buttons_leds_init(bool * p_erase_bonds) {
 
 	*p_erase_bonds = (startup_event == BSP_EVENT_CLEAR_BONDING_DATA);
 }
+#endif
 
 /**
  * @brief Database discovery collector initialization.
@@ -916,6 +944,7 @@ int main(void)
     APP_ERROR_CHECK(err_code);
 
     // Initialize
+    scheduler_init();
     timers_init();
     app.init();
 
@@ -928,7 +957,6 @@ int main(void)
         NRF_LOG_INFO("Bonds erased!\r\n");
     }
     db_discovery_init();
-    scheduler_init();
     gap_params_init();
 
     services_init();
@@ -945,10 +973,12 @@ int main(void)
     // Enter main loop
     for (;;)
     {
+
+		app_sched_execute();
+
 		// run user application
 		app.run();
-		
-		//app_sched_execute();
+
 		NRF_LOG_FLUSH();
 
 		// manage auto-sleep

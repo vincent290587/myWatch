@@ -32,7 +32,8 @@ typedef struct
 
 class WS2812B {
 public:
-	WS2812B(uint8_t pin_num);
+	WS2812B();
+	void init(uint8_t pin_num);
 	void clear() { neopixel_clear(&strip);}
 	void show() {  neopixel_show(&strip);}
 	uint8_t setColor(uint8_t red, uint8_t green, uint8_t blue ) {
@@ -41,6 +42,8 @@ public:
 
 	void setNotify(uint8_t red, uint8_t green, uint8_t blue);
 	void setNotify(uint8_t red, uint8_t green, uint8_t blue, uint8_t on_time);
+	void setWeakNotify(uint8_t red, uint8_t green, uint8_t blue);
+	void setWeakNotify(uint8_t red, uint8_t green, uint8_t blue, uint8_t on_time);
 	void run(void);
 
 private:

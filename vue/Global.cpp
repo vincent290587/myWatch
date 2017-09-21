@@ -19,9 +19,11 @@ APDS9960 adps;
 SPO2HRM spo_hrm;
 STC3100 stc;
 VEML6075 veml;
-WS2812B neopix(24);
+WS2812B neopix;
+
 State prev_state;
 State state;
+Optimizer optim;
 
 Vue vue;
 

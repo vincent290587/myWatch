@@ -24,6 +24,8 @@ bool i2c_read8(uint8_t address, uint8_t *val);
 
 bool i2c_read_n(uint8_t address, uint8_t *val, unsigned int len);
 
+bool i2c_write_n(uint8_t address, uint8_t *val, unsigned int len);
+
 bool i2c_write8(uint8_t address, uint8_t val);
 
 bool i2c_write8_cont(uint8_t address, uint8_t val);
@@ -34,7 +36,6 @@ bool i2c_write_reg_8(uint8_t address, uint8_t reg, uint8_t val);
 
 bool i2c_read_reg_n(uint8_t address, uint8_t reg, uint8_t *val, unsigned int len);
 
-bool i2c_write_reg_n(uint8_t address, uint8_t reg, uint8_t *val, unsigned int len);
 
 #ifdef __cplusplus
 }

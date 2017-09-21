@@ -174,7 +174,7 @@
 #define DEFAULT_GOFFSET         0       // No offset scaling for gesture mode
 #define DEFAULT_GPULSE          0xC9    // 32us, 10 pulses
 #define DEFAULT_GCONF3          0       // All photodiodes active during gesture
-#define DEFAULT_GIEN            0       // Disable gesture interrupts
+#define DEFAULT_GIEN            1       // Enable gesture interrupts
 
 /* Direction definitions */
 enum {
@@ -330,6 +330,8 @@ private:
 	int gesture_far_count_;
 	int gesture_state_;
 	int gesture_motion_;
+
+	bool pinIsInit;
 };
 
 #endif /* LIBRARIES_ADPS9960_H_ */

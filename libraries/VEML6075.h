@@ -29,7 +29,7 @@
 #define VEML6075_CONF_IT_800MS   (0x40) // Integration time = 800ms
 #define VEML6075_CONF_IT_MASK    (0x8F) // Mask off other config bits
 
-#define VEML6075_CONF_HD_NORM    (0x00) // Normal dynamic seetting (default)
+#define VEML6075_CONF_HD_NORM    (0x00) // Normal dynamic setting (default)
 #define VEML6075_CONF_HD_HIGH    (0x08) // High dynamic seetting
 
 #define VEML6075_CONF_TRIG       (0x04) // Trigger measurement, clears by itself
@@ -37,8 +37,8 @@
 #define VEML6075_CONF_AF_OFF     (0x00) // Active force mode disabled (default)
 #define VEML6075_CONF_AF_ON      (0x02) // Active force mode enabled (?)
 
-#define VEML6075_CONF_PW_OFF     (0x01) // Power up
-#define VEML6075_CONF_PW_ON      (0x00) // Power down
+#define VEML6075_CONF_PW_OFF     (0x01) // Power down
+#define VEML6075_CONF_PW_ON      (0x00) // Power up
 
 // To calculate the UV Index, a bunch of empirical/magical coefficients need to
 // be applied to UVA and UVB readings to get a proper composite index value.
@@ -73,6 +73,9 @@ public:
 
 	VEML6075();
 	bool init();
+	void on();
+	void off();
+	uint16_t getConf();
 
 	void poll();
 	float getUVA();
@@ -99,6 +102,7 @@ private:
 	uint16_t raw_ir;
 
 	uint16_t read16(uint8_t reg);
+	uint16_t read16_raw(uint8_t reg);
 	void write16(uint8_t reg, uint16_t data);
 
 };

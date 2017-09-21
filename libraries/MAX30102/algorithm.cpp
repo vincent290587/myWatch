@@ -67,7 +67,7 @@
 int8_t getHRM(RingBuffer *irBuffer) {
 
 	uint16_t k;
-	int32_t an_x[BUFFER_SIZE]; //ir
+	static int32_t an_x[BUFFER_SIZE]; //ir
 	int32_t an_ir_valley_locs[15];
 	int32_t n_th1, n_npks;
 	int32_t n_peak_interval_sum;

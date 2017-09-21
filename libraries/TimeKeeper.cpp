@@ -90,4 +90,11 @@ void TimeKeeper::setTime(uint8_t seconds, uint8_t minutes, uint8_t hours, uint8_
 
 }
 
+bool TimeKeeper::isNight() {
 
+	bool res = true;
+
+	if (_hours > 9) return false;
+
+	return res;
+}

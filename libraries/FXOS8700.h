@@ -53,6 +53,17 @@ private:
 	float _mag_y;
 	float _mag_z;
 
+	bool isInit;
+
+	float _min_mag_x;
+	float _min_mag_y;
+	float _min_mag_z;
+	float _max_mag_x;
+	float _max_mag_y;
+	float _max_mag_z;
+
+	void resetMag() {isInit=false;}
+
 	bool wireWriteDataByte(uint8_t reg, uint8_t val);
 	bool wireReadDataByte(uint8_t reg, uint8_t &val);
 	int wireReadDataBlock(uint8_t reg, uint8_t *val, unsigned int len);

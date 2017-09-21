@@ -11,7 +11,7 @@
 #include "TimeKeeper.h"
 #include "LS013B7DH03.h"
 
-#define NOTIFICATION_PERSISTENCE 3000
+#define NOTIFICATION_PERSISTENCE 5000
 
 class SNotif {
   public:
@@ -36,6 +36,9 @@ public:
 	void addNotification(uint8_t type_, const char *title_, const char *msg_);
 	void addNotification(SNotif *notif);
 
+	void printBatt();
+	void bareMinimum();
+
 	void setTK(TimeKeeper *TimeKeeper);
 
 	void testdrawrect(void);
@@ -47,6 +50,8 @@ private:
 	bool _isInTrans;
 	bool _needsRefresh;
 
+	void DebugScreen();
+	void VeryLowPowerScreen();
 	void LowPowerScreen();
 	void SPO2Screen();
 };

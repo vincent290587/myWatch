@@ -12,13 +12,13 @@ using namespace mvc;
 
 
 Controller::Controller() {
+	lastActionTime = 0;
 }
 
 void Controller::run() {
 
 	// update internal variables
 	acc.runController();
-	adps.runController();
 
 	Action act = acc.getAction();
 	Direction dir = acc.getDirection();
@@ -29,9 +29,9 @@ void Controller::run() {
 	case DTAP:
 		break;
 	case SHAKE:
-		// TODO create an auto disable
-		adps.enablePower();
-		adps.enableGestureSensor(true);
+		// create an auto disable
+		optim.wakeADPS();
+		lastActionTime = millis();
 		break;
 	case SWIPE:
 	case NONE:
@@ -39,19 +39,30 @@ void Controller::run() {
 		break;
 	}
 
-	act = adps.getAction();
-	dir = adps.getDirection();
+	adps.runController();
 
-	if (act == SWIPE) {
-		switch (dir) {
-		case Xp:
-			app.switchMode(SPORT);
-			break;
-		case Xm:
-			app.switchMode(LOW_POWER);
-			break;
-		default:
-			break;
+	if (optim.isAdpsAwake()) {
+
+		act = adps.getAction();
+		dir = adps.getDirection();
+
+		if (act == SWIPE) {
+			switch (dir) {
+			case Xp:
+				if (state < SPORT) {
+					app.switchMode(state+1);
+					lastActionTime = millis();
+				}
+				break;
+			case Xm:
+				if (state > DEBUG) {
+					app.switchMode(state-1);
+					lastActionTime = millis();
+				}
+				break;
+			default:
+				break;
+			}
 		}
 	}
 

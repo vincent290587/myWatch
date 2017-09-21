@@ -25,7 +25,7 @@ VEML6075::VEML6075() : I2C_Device () {
 	// Despite the datasheet saying this isn't the default on startup, it appears
 	// like it is. So tell the thing to actually start gathering data.
 	this->config = 0;
-	this->config |= VEML6075_CONF_PW_ON;
+	this->config |= VEML6075_CONF_HD_HIGH;
 
 	// App note only provided math for this one...
 	this->config |= VEML6075_CONF_IT_100MS;
@@ -33,15 +33,32 @@ VEML6075::VEML6075() : I2C_Device () {
 
 bool VEML6075::init() {
 
-	if (this->getDevID() != VEML6075_DEVID) {
-		NRF_LOG_ERROR("Wrong device ID\r\n");
+	this->on();
+
+	delay(1);
+
+	uint16_t dev_id = this->getDevID();
+	if (dev_id != VEML6075_DEVID) {
+		NRF_LOG_ERROR("Wrong device ID: %u\r\n", dev_id);
+		APP_ERROR_CHECK(dev_id);
 		return false;
 	}
 
-	// Write config to make sure device is enabled
-	this->write16(VEML6075_REG_CONF, this->config);
-
 	return true;
+}
+
+void VEML6075::on() {
+
+	// Write config to make sure device is disabled
+	this->write16(VEML6075_REG_CONF, this->config | VEML6075_CONF_PW_ON);
+
+}
+
+void VEML6075::off() {
+
+	// Write config to make sure device is disabled
+	this->write16(VEML6075_REG_CONF, this->config | VEML6075_CONF_PW_OFF);
+
 }
 
 // Poll sensor for latest values and cache them
@@ -77,6 +94,10 @@ uint16_t VEML6075::getDevID() {
 	return this->read16(VEML6075_REG_DEVID);
 }
 
+uint16_t VEML6075::getConf() {
+	return this->read16(VEML6075_REG_CONF);
+}
+
 float VEML6075::getUVA() {
 	float comp_vis = this->raw_vis - this->raw_dark;
 	float comp_ir = this->raw_ir - this->raw_dark;
@@ -109,25 +130,58 @@ float VEML6075::getUVIndex() {
 
 uint16_t VEML6075::read16(uint8_t reg) {
 
-	if (i2c_write8(VEML6075_ADDR, reg)) {
-		//NRF_LOG_ERROR("Error on I2C\r\n");
-		//return false;
+	uint8_t retries = 3;
+	uint16_t res;
+
+	while (retries--) {
+		res = this->read16_raw(reg);
+		if (res != 0xFFFF) {
+			// success
+			return res;
+		}
 	}
 
-	// read from SPI
+	if (!retries) {
+		APP_ERROR_CHECK(0x4);
+		return 0xFFFF;
+	}
+
+	return res;
+}
+
+uint16_t VEML6075::read16_raw(uint8_t reg) {
+
+	if (!i2c_write8(VEML6075_ADDR, reg)) {
+		//NRF_LOG_ERROR("Error on I2C\r\n");
+		return 0xFFFF;
+	}
+
+	// read from I2C
 	uint8_t raw_data[2];
 	if (!i2c_read_n(VEML6075_ADDR, raw_data, 2)) {
 		return 0xFFFF;
 	}
 
-	return (raw_data[1] << 8) | raw_data[0];
+	uint16_t res = raw_data[1] << 8;
+	res |= raw_data[0];
+
+	return res;
 }
 
-void VEML6075::write16(uint8_t reg, uint16_t data) {
+void VEML6075::write16(uint8_t reg, uint16_t raw_data) {
+
+	uint8_t retries = 3;
 
 	// reg LSB MSB
-	uint8_t raw_data[2] = {(uint8_t)(0xFF & data), (uint8_t)(0xFF & (data >> 8))};
+	uint8_t data[3] = {reg, (uint8_t)(0xFF & raw_data), (uint8_t)((0xFF00 & raw_data) >> 8)};
 
-	(void)i2c_write_reg_n(VEML6075_ADDR, reg, raw_data, 2);
+	while (retries--) {
+		if (i2c_write_n(VEML6075_ADDR, data, 3)) {
+			// success
+			return;
+		}
+	}
+
+	if (!retries) APP_ERROR_CHECK(0x5);
 
 }

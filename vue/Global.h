@@ -17,13 +17,18 @@
 #include "VEML6075.h"
 #include "WS2812B.h"
 #include "Serial.h"
+#include "Optimizer.h"
 
 #include "app.h"
 
 #include "Vue.h"
 #include "Controller.h"
 
-enum State { VERY_LOW_POWER , LOW_POWER , SPORT };
+#define LED_EN_PIN                     1
+
+#define BATT_INT_RES                   0.433
+
+enum State { DEBUG, VERY_LOW_POWER , LOW_POWER , SPORT };
 
 extern Serial serial;
 
@@ -41,6 +46,7 @@ extern WS2812B neopix;
 
 extern State prev_state;
 extern State state;
+extern Optimizer optim;
 
 extern Vue vue;
 

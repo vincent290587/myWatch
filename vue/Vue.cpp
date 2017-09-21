@@ -31,20 +31,64 @@ void Vue::setTK(TimeKeeper *timekeeper) {
 	_timekeeper = timekeeper;
 }
 
-void Vue::LowPowerScreen() {
+void Vue::printBatt() {
+
+	float cor_volt = stc.getCorrectedVoltage(BATT_INT_RES);
+	int perc = percentageBatt(cor_volt, stc.getCurrent());
+
+	// SOC
+	sharp.setTextSize(1);
+    sharp.setCursor(70, 5);
+    sharp.print(perc);
+
+    // charge
+    sharp.setTextSize(1);
+    sharp.setCursor(70, 15);
+    sharp.print(stc.getCharge(), stc.getCharge()*stc.getCharge()>100?0:1);
+
+    // icone
+	sharp.fillRect(120, 10, 3, 6, BLACK); // petit bout
+	sharp.drawRect(90, 7, 30, 12, BLACK); // forme exterieure
+	if (perc > 3) {
+		int Blevel = regFenLim(perc, 0., 100., 1., 26.);
+		sharp.fillRect(92, 9, Blevel, 8, BLACK);
+	}
+
+	// current
+	sharp.setTextSize(2);
+	sharp.setCursor(5, 5);
+	sharp.print(stc.getCurrent(), stc.getCurrent()>10?0:1);
+
+	// Battery voltage
+	sharp.setCursor(10, 20);
+	sharp.setTextSize(1);
+	sharp.print(cor_volt);
+
+	// charge
+	if (nrf_gpio_pin_read(6)==HIGH) {
+		// VUSB present
+		sharp.setCursor(90, 22);
+		sharp.setTextSize(1);
+		if (nrf_gpio_pin_read(11)==LOW) {
+			// charge terminated
+			sharp.print("CHRG");
+		} else {
+			sharp.print("END");
+			neopix.setWeakNotify(WS_RED);
+		}
+
+	}
+
+}
+
+
+void Vue::bareMinimum() {
 
 	uint8_t off = 20;
 
-	sharp.setTextColor(BLACK);
-
-	// current
-	sharp.drawRect(3,3,64,25, BLACK);
-	sharp.setTextSize(2);
-	sharp.setCursor(5, 5);
-	sharp.print(stc.getCurrent(), 1);
-
 	// time
 	sharp.setTextSize(3);
+	sharp.setTextColor(BLACK);
 	sharp.setCursor(0, 40);
 	sharp.setCursor(sharp.getCursorX() + off, sharp.getCursorY());
 	sharp.print(_timekeeper->getHours()<10?String("0"):String(""));
@@ -55,6 +99,61 @@ void Vue::LowPowerScreen() {
 	sharp.setCursor(sharp.getCursorX() + off + 50, sharp.getCursorY() + 3);
 	sharp.print(_timekeeper->getSeconds()<10?String("0"):String(""));
 	sharp.print(_timekeeper->getSeconds());
+
+}
+
+void Vue::DebugScreen() {
+
+	this->printBatt();
+
+	sharp.setCursor(0, 35);
+	sharp.setTextSize(1);
+	sharp.println(String("Action fxos: ") + String((uint8_t)acc.getLastAction()));
+	sharp.println("");
+	sharp.println(String("Action adps.: ") + String((uint8_t)adps.getLastAction()));
+	sharp.println("");
+//	sharp.println(String("Acc.acc_x: ") + String(acc.xg()));
+//	sharp.println(String("Acc.acc_y: ") + String(acc.yg()));
+//	sharp.println(String("Acc.acc_z: ") + String(acc.zg()));
+//	sharp.println("");
+//	sharp.println(String("Acc.mag_x: ") + String(acc.getMagX()));
+//	sharp.println(String("Acc.mag_y: ") + String(acc.getMagY()));
+//	sharp.println("");
+	sharp.println(String("VEML ID: ") + String(veml.getDevID()));
+	sharp.println(String("VEML Cnf: ") + String(veml.getConf()));
+	sharp.println(String("VEML UVA: ") + String(veml.getUVA()));
+	sharp.println(String("VEML IVi: ") + String(veml.getUVIndex()));
+	sharp.println(String("VEML visible: ") + String(veml.getRawVisComp()));
+	sharp.println(String("VEML IR: ") + String(veml.getRawIRComp()));
+	sharp.println("");
+	//sharp.println(String("VEML visible: ") + String(veml.getRawVisComp()));
+	//sharp.println(String("VEML visible: ") + String(veml.getRawVisComp()));
+	sharp.println(String("ADPS ON: ") + String(optim.isAdpsAwake()));
+	sharp.println(String("LDO ON: ") + String(digitalRead(LED_EN_PIN)));
+	sharp.println("");
+}
+
+void Vue::VeryLowPowerScreen() {
+
+	this->bareMinimum();
+
+	// Batt
+	this->printBatt();
+
+	// temperature
+	sharp.setCursor(50, 105);
+	sharp.setTextSize(2);
+	sharp.print(stc.getTemperature(), 1);
+	sharp.print("*C");
+
+}
+
+void Vue::LowPowerScreen() {
+
+	this->bareMinimum();
+
+	// Batt
+	this->printBatt();
 
 	// North direction
 	uint16_t x1=64, y1=90;
@@ -69,13 +168,21 @@ void Vue::LowPowerScreen() {
 		sharp.fillRect(11, 91, 10, UVlevel, WHITE);
 	}
 
-	// Batt
-	int perc = percentageBatt(stc.getVoltage());
-	sharp.fillRect(120, 10, 3, 6, BLACK); // petit bout
-	sharp.drawRect(90, 7, 30, 12, BLACK); // forme exterieure
-	if (perc < 98) {
-		int Blevel = regFenLim(perc, 0., 100., 1., 26.);
-		sharp.fillRect(92, 9, Blevel, 8, BLACK);
+	// VISIBLE
+	sharp.drawRect(106, 90, 14, 30, BLACK);
+
+	uint16_t vis_light = veml.getRawVisComp();
+	uint16_t ir_light = veml.getRawIRComp();
+	static float max_light = 100.;
+	max_light = MAX(vis_light, max_light);
+	max_light = MAX(ir_light, max_light);
+	int alevel = regFenLim(ir_light, 0., max_light, 1., 28.);
+	int blevel = regFenLim(vis_light, 0., max_light, 1., 28.);
+	if (alevel > 1) {
+		sharp.fillRect(108, 119-alevel, 4, alevel, BLACK);
+	}
+	if (blevel > 1) {
+		sharp.fillRect(114, 119-blevel, 4, blevel, BLACK);
 	}
 
 }
@@ -87,14 +194,9 @@ void Vue::SPO2Screen() {
 	int16_t min_, max_, fen_;
 	static uint32_t last_counter = 0;
 
+	this->printBatt();
+
 	sharp.setTextColor(BLACK);
-
-	// current
-	sharp.drawRect(3,3,60,25, BLACK);
-
-	sharp.setTextSize(2);
-	sharp.setCursor(5, 5);
-	sharp.print(stc.getCurrent(), 1);
 
 	uint16_t x, y;
 	const uint8_t MEDIANE = 100;
@@ -121,7 +223,7 @@ void Vue::SPO2Screen() {
 
 	// HR + SPO2
 	sharp.setTextSize(2);
-	sharp.setCursor(5+70, 5);
+	sharp.setCursor(40, 30);
 	sharp.print(spo_hrm.getHR());
 	sharp.print(" / ");
 	sharp.print(spo_hrm.getSPO2());
@@ -133,8 +235,13 @@ void Vue::run() {
 
 		// USER STATE MACHINE
 		switch (state) {
+		default:
+		case DEBUG:
+			DebugScreen();
+			break;
+
 		case VERY_LOW_POWER:
-			// TODO
+			VeryLowPowerScreen();
 			break;
 
 		case LOW_POWER:
@@ -187,12 +294,12 @@ void Vue::performTransition() {
 
 void Vue::addNotification(uint8_t type_, const char *title_, const char *msg_) {
 
-		notif.timetag = 0;
-		notif.isNew = true;
+	notif.timetag = 0;
+	notif.isNew = true;
 
-		notif.type = type_;
-		notif.title = title_;
-		notif.msg = msg_;
+	notif.type = type_;
+	notif.title = title_;
+	notif.msg = msg_;
 
 }
 

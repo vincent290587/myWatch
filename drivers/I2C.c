@@ -35,9 +35,6 @@ void i2c_init(void) {
        .clear_bus_init     = true
     };
 
-//    nrf_gpio_cfg_input(twi_config.sda, NRF_GPIO_PIN_PULLUP);
-//    nrf_gpio_cfg_input(twi_config.scl, NRF_GPIO_PIN_PULLUP);
-
     err_code = nrf_drv_twi_init(&m_twi, &twi_config, NULL, NULL);
     APP_ERROR_CHECK(err_code);
 
@@ -149,6 +146,30 @@ bool i2c_write8_cont(uint8_t address, uint8_t val) {
 	return true;
 }
 
+
+/**
+ * @brief Writes a block (array) of bytes from the I2C device and register
+ *
+ * @param[in] reg the register to read from
+ * @param[out] val pointer to the beginning of the data
+ * @param[in] len number of bytes to read
+ * @return Number of bytes read. -1 on read error.
+ */
+bool i2c_write_n(uint8_t address, uint8_t *val, unsigned int len) {
+
+	/* Indicate which register we want to write from */
+	ret_code_t err_code = nrf_drv_twi_tx(i2c_get_ref(), address, val, len, true);
+
+	if (err_code != NRF_SUCCESS) {
+		NRF_LOG_INFO("TWI i2c_write_n problem at address 0x%x.\r\n", address);
+		NRF_LOG_FLUSH();
+		return false;
+	}
+
+	return true;
+}
+
+
 /**
  * @brief Writes a single byte to the I2C device and specified register
  *
@@ -211,30 +232,6 @@ bool i2c_read_reg_n(uint8_t address, uint8_t reg, uint8_t *val, unsigned int len
 		NRF_LOG_INFO("TWI read_reg_n error 0x%X at address 0x%x.\r\n", err_code, address);
 		NRF_LOG_FLUSH();
 		return false;
-	}
-
-	return true;
-}
-
-/**
- * @brief Reads a block (array) of bytes from the I2C device and register
- *
- * @param[in] reg the register to read from
- * @param[out] val pointer to the beginning of the data
- * @param[in] len number of bytes to read
- * @return Number of bytes read. -1 on read error.
- */
-bool i2c_write_reg_n(uint8_t address, uint8_t reg, uint8_t *val, unsigned int len) {
-
-	/* Indicate which register we want to read from */
-	ret_code_t err_code = nrf_drv_twi_tx(i2c_get_ref(), address, &reg, 1, false);
-
-	// read from I2C
-	err_code |= nrf_drv_twi_rx(i2c_get_ref(), address, val, len);
-	if (err_code != NRF_SUCCESS) {
-		return false;
-		NRF_LOG_INFO("TWI write_reg_n problem at address 0x%x.\r\n", address);
-		NRF_LOG_FLUSH();
 	}
 
 	return true;

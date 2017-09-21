@@ -36,7 +36,7 @@ void rotate_point(float angle, uint16_t cx, uint16_t cy,
 	x2 = tmp3 + cx;
 	y2 = tmp4 + cy;
 
-	NRF_LOG_INFO("Nouveaux points: %u %u\r\n", x2, y2);
+	//NRF_LOG_INFO("Nouveaux points: %u %u\r\n", x2, y2);
 }
 
 

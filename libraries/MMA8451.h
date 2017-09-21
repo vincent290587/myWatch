@@ -99,8 +99,8 @@ const byte activeMask = 0x01;
 const byte resModeMask = 0x02;
 const byte lowNoiseMask = 0x04;
 
-extern "C" void accelPulseISR(nrf_drv_gpiote_pin_t pin, nrf_gpiote_polarity_t polarity_);
-extern "C" void accelShakeISR(nrf_drv_gpiote_pin_t pin, nrf_gpiote_polarity_t polarity_);
+extern "C" void int2ISR(nrf_drv_gpiote_pin_t pin, nrf_gpiote_polarity_t polarity_);
+extern "C" void int1ISR(nrf_drv_gpiote_pin_t pin, nrf_gpiote_polarity_t polarity_);
 
 
 class MMA8451_n0m1 : public I2C_Device, public MotionController {
@@ -131,8 +131,7 @@ public:
 	 * set the device to return raw data values
 	 *
 	 ***********************************************************/
-	void dataModeInt(boolean highRes, int gScaleRange, byte odr,
-	boolean enableINT2, int arduinoINTPin);
+	void dataModeInt(boolean highRes, int gScaleRange, boolean enableINT2);
 
 	int x() {
 		return x_;
@@ -305,6 +304,8 @@ public:
 	char getOFFY();
 	char getOFFZ();
 
+	void run();
+
 //-----------------------------------------------------------
 // Compatiblity functions to match the api of the ADXL345 library
 // http://code.google.com/p/adxl345driver/
@@ -320,8 +321,8 @@ public:
 		xyz(*x, *y, *z);
 	}
 
-	volatile boolean shakeISRFlag;
-	volatile boolean pulseISRFlag;
+	volatile boolean int1ISRFlag;
+	volatile boolean int2ISRFlag;
 	volatile unsigned long measure_time_;
 	static MMA8451_n0m1* pMMA8451_n0m1; //ptr to MMA8451_n0m1 class for the ISR
 

@@ -21,6 +21,7 @@
 
 #include "Arduino.h"
 
+#define BATT_INT_RES       0.05
 
 #define TICKS_TO_MS(ticks)                                                           \
 		(                                                                            \
@@ -57,6 +58,145 @@ void delay(uint32_t p_time) {
 }
 
 
+
+char * ultoa(unsigned long val, char *buf, int radix)
+{
+	unsigned digit;
+	int i=0, j;
+	char t;
+
+	while (1) {
+		digit = val % radix;
+		buf[i] = ((digit < 10) ? '0' + digit : 'A' + digit - 10);
+		val /= radix;
+		if (val == 0) break;
+		i++;
+	}
+	buf[i + 1] = 0;
+	for (j=0; j < i; j++, i--) {
+		t = buf[j];
+		buf[j] = buf[i];
+		buf[i] = t;
+	}
+	return buf;
+}
+
+char * ltoa(long val, char *buf, int radix)
+{
+	if (val >= 0) {
+		return ultoa(val, buf, radix);
+	} else {
+		buf[0] = '-';
+		ultoa(-val, buf + 1, radix);
+		return buf;
+	}
+}
+
+#define DTOA_UPPER 0x04
+
+char * fcvtf(float, int, int *, int *);
+int isnanf (float x);
+int isinff (float x);
+
+char * dtostrf(float val, int width, unsigned int precision, char *buf)
+{
+	int decpt, sign, reqd, pad;
+	const char *s, *e;
+	char *p;
+
+	int awidth = abs(width);
+	if (isnanf(val)) {
+		int ndigs = (val<0) ? 4 : 3;
+		awidth = (awidth > ndigs) ? awidth - ndigs : 0;
+		if (width<0) {
+			while (awidth) {
+				*buf++ = ' ';
+				awidth--;
+			}
+		}
+		if (copysignf(1.0f, val)<0) *buf++ = '-';
+		if (DTOA_UPPER) {
+			*buf++ = 'N';  *buf++ = 'A';  *buf++ = 'N';
+		} else {
+			*buf++ = 'n';  *buf++ = 'a';  *buf++ = 'n';
+		}
+		while (awidth) {
+			*buf++ = ' ';
+			awidth--;
+		}
+		*buf = 0;
+		return buf;
+	}
+	if (isinff(val)) {
+		int ndigs = (val<0) ? 4 : 3;
+		awidth = (awidth > ndigs) ? awidth - ndigs : 0;
+		if (width<0) {
+			while (awidth) {
+				*buf++ = ' ';
+				awidth--;
+			}
+		}
+		if (val<0) *buf++ = '-';
+		if (DTOA_UPPER) {
+			*buf++ = 'I';  *buf++ = 'N';  *buf++ = 'F';
+		} else {
+			*buf++ = 'i';  *buf++ = 'n';  *buf++ = 'f';
+		}
+		while (awidth) {
+			*buf++ = ' ';
+			awidth--;
+		}
+		*buf = 0;
+		return buf;
+	}
+
+	s = fcvtf(val, precision, &decpt, &sign);
+	if (precision == 0 && decpt == 0) {
+		s = (*s < '5') ? "0" : "1";
+		reqd = 1;
+	} else {
+		reqd = strlen(s);
+		if (reqd > decpt) reqd++;
+		if (decpt == 0) reqd++;
+	}
+	if (sign) reqd++;
+	p = buf;
+	e = p + reqd;
+	pad = width - reqd;
+	if (pad > 0) {
+		e += pad;
+		while (pad-- > 0) *p++ = ' ';
+	}
+	if (sign) *p++ = '-';
+	if (decpt == 0 && precision > 0) {
+		*p++ = '0';
+		*p++ = '.';
+	}
+	else if (decpt < 0 && precision > 0) {
+		*p++ = '0';
+		*p++ = '.';
+		e++;
+		while ( decpt < 0 ) {
+			decpt++;
+			*p++ = '0';
+		}
+	}
+	while (p < e) {
+		*p++ = *s++;
+		if (p == e) break;
+		if (--decpt == 0) *p++ = '.';
+	}
+	if (width < 0) {
+		pad = (reqd + width) * -1;
+		while (pad-- > 0) *p++ = ' ';
+	}
+	*p = 0;
+
+	//char format[20];
+	//sprintf(format, "%%%d.%df", width, precision);
+	//sprintf(buf, format, val);
+	return buf;
+}
 
 void pinMode(uint8_t p_pin, uint8_t p_mode) {
 
@@ -142,22 +282,29 @@ float compute2Complement(uint8_t msb, uint8_t lsb) {
 	return ret;
 }
 
-int percentageBatt (float tensionValue) {
 
-  float fp_ = 0.;
+float percentageBatt(float tensionValue, float current) {
 
-  if (tensionValue > 4.2) {
-	  fp_ = 100;
-  } else if (tensionValue > 3.78) {
-	  fp_ = 536.34*tensionValue*tensionValue*tensionValue-6723.8*tensionValue*tensionValue;
-	  fp_ += 28186*tensionValue-39402;
-  } else if (tensionValue > 2.) {
-	  fp_ = pow(10, -11.4)*pow(tensionValue, 22.315);
-  } else {
-	  fp_ = 0;
-  }
+    float fp_ = 0.;
 
-  return (int)fp_;
+	tensionValue += current * BATT_INT_RES / 1000.;
+
+    if (tensionValue > 4.2) {
+			fp_ = 100.;
+    } else if (tensionValue > 3.78) {
+        fp_ = 536.24 * tensionValue * tensionValue * tensionValue;
+		fp_ -= 6723.8 * tensionValue * tensionValue;
+        fp_ += 28186 * tensionValue - 39402;
+
+		if (fp_ > 100.) fp_ = 100.;
+
+    } else if (tensionValue > 3.2) {
+        fp_ = pow(10, -11.4) * pow(tensionValue, 22.315);
+    } else {
+        fp_ = -1;
+    }
+
+    return fp_;
 }
 
 //float min(float val1, float val2) {

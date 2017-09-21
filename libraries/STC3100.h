@@ -79,6 +79,11 @@ public:
 	float getCurrent() { return _current;}
 	float getVoltage() {return _voltage;}
 	float getTemperature() {return _temperature;}
+	float getCorrectedVoltage(float int_res);
+
+	float getCharge() const {
+		return _charge;
+	}
 
 private:
 	int32_t _sensorID;

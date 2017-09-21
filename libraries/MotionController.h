@@ -12,8 +12,8 @@
 #include "TimeKeeper.h"
 
 #define MAX_DERIVEE  4
-#define WINDOW_TIME 299
-#define DEBOUNCE_TIME 1499
+#define WINDOW_TIME 350
+#define DEBOUNCE_TIME 50
 
 typedef enum {
 	NONE=0,
@@ -41,6 +41,7 @@ public:
 
 	Action getAction();
 	Direction getDirection();
+	Action getLastAction();
 
 	void runController(void);
 
@@ -51,6 +52,7 @@ private:
 	uint8_t _nb_single_tap;
 
 	Action _last_action;
+	Action _last_action_perm;
 	uint8_t _last_action_dir;
 	uint32_t _last_action_time;
 

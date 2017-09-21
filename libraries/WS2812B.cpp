@@ -15,9 +15,7 @@
 #define ON_TICKS_DEFAULT 3
 
 
-WS2812B::WS2812B(uint8_t pin_num) {
-
-	neopixel_init(&strip, pin_num, 1);
+WS2812B::WS2812B() {
 
 	_params.max = 10;
 	_params.min = 0;
@@ -33,6 +31,11 @@ WS2812B::WS2812B(uint8_t pin_num) {
 
 }
 
+void WS2812B::init(uint8_t pin_num) {
+
+	neopixel_init(&strip, pin_num, 1);
+
+}
 
 void WS2812B::setNotify(uint8_t red, uint8_t green, uint8_t blue) {
 
@@ -56,10 +59,31 @@ void WS2812B::setNotify(uint8_t red, uint8_t green, uint8_t blue, uint8_t on_tim
 
 }
 
+void WS2812B::setWeakNotify(uint8_t red, uint8_t green, uint8_t blue) {
+
+	if (!leds_is_on) {
+		this->setNotify(red, green, blue);
+		_params.on_time_ticks = ON_TICKS_DEFAULT;
+	}
+
+}
+
+void WS2812B::setWeakNotify(uint8_t red, uint8_t green, uint8_t blue, uint8_t on_time) {
+
+	if (!leds_is_on) {
+		this->setNotify(red, green, blue);
+		_params.on_time_ticks = on_time;
+	}
+
+}
+
 void WS2812B::run() {
 
-	if (!leds_is_on) return;
-
+	if (!leds_is_on) {
+		this->clear();
+		return;
+	}
+	
 	// continue process
     if (pause_ticks <= 0)
     {
@@ -67,7 +91,7 @@ void WS2812B::run() {
         {
             if (int(ratio) >= int(_params.max - _params.step))
             {
-                // Max PWM duty cycle is reached, start decrementing.
+                // start decrementing.
                 is_counting_up = false;
                 pause_ticks = _params.on_time_ticks;
             }

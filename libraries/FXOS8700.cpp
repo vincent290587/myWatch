@@ -20,6 +20,8 @@ FXOS8700::FXOS8700() : MMA8451_n0m1() {
 	_mag_x = 0;
 	_mag_y = 0;
 	_mag_z = 0;
+
+	isInit = false;
 }
 
 
@@ -48,18 +50,22 @@ bool FXOS8700::init() {
 
 	// init the magnetometer in hybrid mode
 	wireReadDataByte(FXOS8700CQ_M_CTRL_REG1, statusCheck);
-	statusCheck |= 0x1F;
+	statusCheck |= 0b10011111;
 	wireWriteDataByte(FXOS8700CQ_M_CTRL_REG1, statusCheck);
 
 	wireReadDataByte(FXOS8700CQ_M_CTRL_REG2, statusCheck);
-	statusCheck |= 0x20;
+	statusCheck |= 0b00100000;
 	wireWriteDataByte(FXOS8700CQ_M_CTRL_REG2, statusCheck);
 
-	// Global shared ODR
-	setODR(ODR_800Hz);
+	// TODO Global shared ODR 800 Hz
+	setODR(ODR_400Hz);
 
 	// go !!
 	setActive();
+
+	// attach interrupts
+	attachInterrupt(INT_PIN1, int1ISR);
+	attachInterrupt(INT_PIN2, int2ISR);
 
 	return true;
 }
@@ -73,18 +79,47 @@ void FXOS8700::update() {
 
 	// read magnetometer
 	if (!wireReadDataBlock(FXOS8700_M_DR_STATUS, val, 7)) {
+		APP_ERROR_CHECK(0x1);
 		return;
 	}
 
-	float factor = 1 / 10.0;
+	float factor = 1. / 10.0;
 
 	int16_t x = (int16_t)((val[1] << 8) | val[2]);
 	int16_t y = (int16_t)((val[3] << 8) | val[4]);
 	int16_t z = (int16_t)((val[5] << 8) | val[6]);
 
-	_mag_x = (float)x * factor;
-	_mag_y = (float)y * factor;
-	_mag_z = (float)z * factor;
+	float mag_x = (float)x * factor;
+	float mag_y = (float)y * factor;
+	float mag_z = (float)z * factor;
+
+	if (isInit) {
+		_min_mag_x = MIN(_min_mag_x, mag_x);
+		_min_mag_y = MIN(_min_mag_y, mag_y);
+		_min_mag_z = MIN(_min_mag_z, mag_z);
+
+		_max_mag_x = MAX(_max_mag_x, mag_x);
+		_max_mag_y = MAX(_max_mag_y, mag_y);
+		_max_mag_z = MAX(_max_mag_z, mag_z);
+	} else {
+		_min_mag_x = mag_x;
+		_min_mag_y = mag_y;
+		_min_mag_z = mag_z;
+
+		_max_mag_x = mag_x;
+		_max_mag_y = mag_y;
+		_max_mag_z = mag_z;
+
+		isInit = true;
+	}
+
+	_mag_x = mag_x - 0.5*(_min_mag_x + _max_mag_x);
+	_mag_y = mag_y - 0.5*(_min_mag_y + _max_mag_y);
+	_mag_z = mag_z - 0.5*(_min_mag_z + _max_mag_z);
+
+	if (abs(_mag_x) > 500 || abs(_mag_y) > 500) {
+		this->resetMag();
+	}
 
 	return;
 }
@@ -94,7 +129,7 @@ float FXOS8700::computeNorthDirection() {
 
 	float angle;
 
-	angle = (atan2 (_mag_x, _mag_y) + PI) * 180 / PI;
+	angle = (atan2 (_mag_x, _mag_y)) * 180 / PI;
 
 	return angle;
 

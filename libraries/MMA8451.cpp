@@ -21,12 +21,39 @@ extern Serial serial;
 
 MMA8451_n0m1* MMA8451_n0m1::pMMA8451_n0m1 = 0;
 
+
+/***********************************************************
+ *
+ * accelPulseISR
+ *
+ *
+ *
+ ***********************************************************/
+void int2ISR(nrf_drv_gpiote_pin_t pin, nrf_gpiote_polarity_t polarity_) {
+	if (polarity_ == NRF_GPIOTE_POLARITY_HITOLO) {
+		MMA8451_n0m1::pMMA8451_n0m1->int2ISRFlag = true;
+	}
+}
+
+/***********************************************************
+ *
+ * accelShakeISR
+ *
+ *
+ *
+ ***********************************************************/
+void int1ISR(nrf_drv_gpiote_pin_t pin, nrf_gpiote_polarity_t polarity_) {
+	if (polarity_ == NRF_GPIOTE_POLARITY_HITOLO) {
+		MMA8451_n0m1::pMMA8451_n0m1->int1ISRFlag = true;
+	}
+}
+
 MMA8451_n0m1::MMA8451_n0m1() : I2C_Device () {
 	pMMA8451_n0m1 = this;
 	dataMode_ = false;
 	shakeMode_ = false;
-	shakeISRFlag = false;
-	pulseISRFlag = false;
+	int1ISRFlag = false;
+	int2ISRFlag = false;
 	shake_ = false;
 	shakeAxisX_ = false;
 	shakeAxisY_ = false;
@@ -67,7 +94,8 @@ bool MMA8451_n0m1::init() {
 	NRF_LOG_INFO("Device ID: 0x%x\r\n", statusCheck);
 	NRF_LOG_FLUSH();
 
-	if (statusCheck != 0x1A) {
+	if (statusCheck != 0x1A && statusCheck != 0xC7) {
+		NRF_LOG_ERROR("Wrong device ID !!\r\n");
 		return false;
 	}
 
@@ -81,6 +109,11 @@ bool MMA8451_n0m1::init() {
 	// go !!
 	setActive();
 
+	// attach interrupts
+	attachInterrupt(INT_PIN1, int1ISR);
+	attachInterrupt(INT_PIN2, int2ISR);
+
+
 	return true;
 }
 
@@ -88,58 +121,53 @@ bool MMA8451_n0m1::init() {
 // init
 bool MMA8451_n0m1::init_bare() {
 
-	uint8_t statusCheck;
-
 	// setup datarate
-	wireReadDataByte(REG_CTRL_REG1, statusCheck);
-	statusCheck = 0x0C;
-	wireWriteDataByte(REG_CTRL_REG1, statusCheck);
+	setODR(ODR_400Hz); //Set device in ODR rate
+
+	// setup high-level functions
+	// acc values INT2
+	dataModeInt(true, 8, true);
+	// INT1 X-Z
+	pulseMode(true,false,true,false);
+	// INT1 Y
+	shakeMode(10,false,true,false,false);
 
 #if 0
-	// setup auto-sleep
-	wireWriteDataByte(REG_ASLP_COUNT, 0x40);
+	uint8_t statusCheck;
+	// setup auto sleep
+	// enable auto sleep, set sleep power mode scheme
+	wireReadDataByte(REG_CTRL_REG2, statusCheck);
+	statusCheck &= ~(0b00011100);
+	statusCheck |=   0b00011100; // select low power mode
+	wireWriteDataByte(REG_CTRL_REG2, statusCheck);
 
 	// sleep datarate
 	wireReadDataByte(REG_CTRL_REG1, statusCheck);
-	statusCheck &= ~(0xC0);
-	statusCheck |= 0b1000000; // select 6.25 Hz sleep mode sample frequency for low power
+	statusCheck &= ~(0b11000000);
+	statusCheck |=   0b11000000; // select 50 Hz sleep mode sample frequency
 	wireWriteDataByte(REG_CTRL_REG1, statusCheck);
 
-	// set sleep power mode scheme
-	wireReadDataByte(REG_CTRL_REG2, statusCheck);
-	statusCheck &= ~(0x18);
-	statusCheck |= 0b00000; // select normal mode
-	wireWriteDataByte(REG_CTRL_REG2, statusCheck);
+	// setup auto-sleep timeout
+	wireWriteDataByte(REG_ASLP_COUNT, 0x30);
 
-	// enable auto sleep
-	wireReadDataByte(REG_CTRL_REG2, statusCheck);
-	statusCheck &= ~(0x4);
-	statusCheck |= 0b100;
-	wireWriteDataByte(REG_CTRL_REG2, statusCheck);
+	// sleep interrupt enable
+	wireReadDataByte(REG_CTRL_REG4, statusCheck);
+	statusCheck &= ~(0b10000000); // clear bit 7
+	statusCheck |=   0b10110000; // select  Auto-SLEEP/WAKE interrupt enable, transient interrupt, orientation
+	wireWriteDataByte(REG_CTRL_REG4, statusCheck);
+
+	// sleep interrupt enable
+	wireReadDataByte(REG_CTRL_REG5, statusCheck);
+	statusCheck &= ~(0b10000000); // clear bit 7
+	statusCheck |=   0b00000000; // route sleep INT to pin 2
+	wireWriteDataByte(REG_CTRL_REG4, statusCheck);
 
 	// sleep interrupt scheme
 	wireReadDataByte(REG_CTRL_REG3, statusCheck);
-	statusCheck &= ~(0x3C);
-	statusCheck |= 0b10110; // wakeup by tap & shake / select ACTIVE HIGH, push-pull interrupts
+	statusCheck &= ~(0b01111111);
+	statusCheck |= 0b01010101; // wakeup by tap/shake/vectm + active low/open-drain
 	wireWriteDataByte(REG_CTRL_REG3, statusCheck);
 
-	// sleep interrupt scheme
-	wireReadDataByte(REG_CTRL_REG4, statusCheck);
-	statusCheck &= ~(0x80); // clear bit 7
-	statusCheck |= 0b10000000; // select  Auto-SLEEP/WAKE interrupt enable
-	wireWriteDataByte(REG_CTRL_REG4, statusCheck);
-#endif
-	// setup high-level functions
-
-	// acc values
-	dataMode(true, 8);
-
-#if 1
-	//setODR(ODR_400Hz); //Set device in ODR rate
-	// INT1
-	pulseMode(true,true,true,false);
-	// INT2
-	shakeMode(10,true,true,true,true);
 #endif
 
 	return true;
@@ -161,9 +189,13 @@ void MMA8451_n0m1::update() {
 		xyz(x_, y_, z_);
 	}
 
+	this->run();
+
+}
+
+void MMA8451_n0m1::run() {
+
 	if (tapMode_ == true || shakeMode_ == true || motionMode_ == true || dataModeInt_ == true) {
-		if (debug)
-			serial.println("interrupt driven");
 		clearInterrupt();
 	}
 
@@ -180,10 +212,12 @@ void MMA8451_n0m1::clearInterrupt() {
 
 	if (debug)
 		serial.print("(clearInterrupt) ");
-	// TODO check that
-	if (pulseISRFlag || shakeISRFlag) {
 
-		pulseISRFlag = shakeISRFlag = false;
+	// TODO check that
+	if (int2ISRFlag || int1ISRFlag ||
+			digitalRead(INT_PIN1)==LOW || digitalRead(INT_PIN2)==LOW) {
+
+		int2ISRFlag = int1ISRFlag = false;
 
 		if (debug)
 			serial.println(" ISRFlag ON");
@@ -206,17 +240,18 @@ void MMA8451_n0m1::clearInterrupt() {
 
 			if ((srcTrans & 0x02) == 0x02) {
 				serial.println("Shake on X"); // tabbing here for visibility
-				this->notify(SHAKE, Xp);
+				// MMA is 90 degres
+				// TODO this->notify(SHAKE, Xp);
 				shakeAxisX_ = true;
 			}
 			if ((srcTrans & 0x08) == 0x08) {
 				serial.println("Shake on Y"); // tabbing here for visibility
-				this->notify(SHAKE, Yp);
+				this->notify(SHAKE, Xp);
 				shakeAxisY_ = true;
 			}
 			if ((srcTrans & 0x20) == 0x20) {
 				serial.println("Shake on Z"); // tabbing here for visibility
-				this->notify(SHAKE, Zp);
+				// TODO this->notify(SHAKE, Zp);
 				shakeAxisZ_ = true;
 			}
 		}
@@ -229,6 +264,8 @@ void MMA8451_n0m1::clearInterrupt() {
 			// Read the Pulse to clear system interrupt and Transient
 			byte source;
 			shake_ = true;
+
+			// read register
 			wireReadDataByte(REG_PULSE_SRC, source);
 
 			if ((source & 0x10) == 0x10) { // If AxX bit is set
@@ -243,11 +280,11 @@ void MMA8451_n0m1::clearInterrupt() {
 
 				if ((source & 0x01) == 0x01) { // If PoIX is set
 					serial.println(" -");
-					this->notify((Action)pulseAxisX_, Xm);
+					this->notify(pulseAxisX_==1?STAP:DTAP, Xm);
 					pulseAxisX_ = -pulseAxisX_;
 				} else {
 					serial.println(" +");
-					this->notify((Action)pulseAxisX_, Xp);
+					this->notify(pulseAxisX_==1?STAP:DTAP, Xp);
 				}
 			}
 			if ((source & 0x20) == 0x20) { // If AxY bit is set
@@ -262,11 +299,11 @@ void MMA8451_n0m1::clearInterrupt() {
 
 				if ((source & 0x02) == 0x02) { // If PoIY is set
 					serial.println(" -");
-					this->notify((Action)pulseAxisY_, Ym);
+					this->notify(pulseAxisY_==1?STAP:DTAP, Ym);
 					pulseAxisY_ = -pulseAxisY_;
 				} else {
 					serial.println(" +");
-					this->notify((Action)pulseAxisY_, Yp);
+					this->notify(pulseAxisY_==1?STAP:DTAP, Yp);
 				}
 			}
 			if ((source & 0x40) == 0x40) { // If AxZ bit is set
@@ -282,11 +319,11 @@ void MMA8451_n0m1::clearInterrupt() {
 
 			    if ((source & 0x04)==0x04) { // If PoIZ is set
 			      serial.println(" -");
-			      this->notify((Action)pulseAxisZ_, Zm);
+			      this->notify(pulseAxisZ_==1?STAP:DTAP, Zm);
 			      pulseAxisZ_ = -pulseAxisZ_;
 			    } else {
 			      serial.println(" +");
-			      this->notify((Action)pulseAxisZ_, Zp);
+			      this->notify(pulseAxisZ_==1?STAP:DTAP, Zp);
 			    }
 			}
 
@@ -422,14 +459,10 @@ void MMA8451_n0m1::dataMode(boolean highRes, int gScaleRange) {
  *
  ***********************************************************/
 
-void MMA8451_n0m1::dataModeInt(boolean highRes, int gScaleRange, byte odr,
-boolean enableINT2, int arduinoINTPin) {
+void MMA8451_n0m1::dataModeInt(boolean highRes, int gScaleRange, boolean enableINT2) {
 	highRes_ = highRes;
 	gScaleRange_ = gScaleRange;
-	dataModeInt_ = true;
 	byte statusCheck;
-
-	setODR(odr); //Set device in ODR rate
 
 	if (gScaleRange_ <= 3) {
 		gScaleRange_ = FULL_SCALE_RANGE_2g;
@@ -447,15 +480,25 @@ boolean enableINT2, int arduinoINTPin) {
 
 	//set highres 14bit or lowres 8bit
 	wireReadDataByte(REG_CTRL_REG1, statusCheck);
-
 	if (highRes) {
 		wireWriteDataByte(REG_CTRL_REG1, (statusCheck & ~resModeMask));
 	} else {
 		wireWriteDataByte(REG_CTRL_REG1, (statusCheck | resModeMask));
 	}
+
+	// accelerator vector magnitude interrupt enable
 	wireReadDataByte(REG_CTRL_REG4, statusCheck);
-	statusCheck |= 0x01;
+	statusCheck |= 0x10;
 	wireWriteDataByte(REG_CTRL_REG4, statusCheck);
+
+	// route interrupt
+	wireReadDataByte(REG_CTRL_REG5, statusCheck);
+	if (!enableINT2) {
+		statusCheck |= 0x10;
+	} else {
+		statusCheck &= ~0x10;
+	}
+	wireWriteDataByte(REG_CTRL_REG5, statusCheck);
 
 }
 
@@ -468,8 +511,6 @@ boolean enableINT2, int arduinoINTPin) {
  ***********************************************************/
 void MMA8451_n0m1::motionMode(int threshold, boolean enableX, boolean enableY,
 boolean enableZ, boolean enableINT2, int arduinoINTPin) {
-
-//	attachInterrupt(INT_PIN1, accelISR);
 
 	boolean error = false;
 	byte statusCheck;
@@ -578,11 +619,9 @@ boolean enableZ, boolean enableINT2) {
 	if (enableINT2) {
 		// INT2
 		intSelect = 0x00;
-		attachInterrupt(INT_PIN2, accelShakeISR);
 	} else {
 		// INT1
 		intSelect = 0x20;
-		attachInterrupt(INT_PIN1, accelShakeISR);
 	}
 	wireReadDataByte(REG_CTRL_REG5, statusCheck);
 	statusCheck |= intSelect;
@@ -607,8 +646,7 @@ boolean enableZ, boolean enableINT2) {
    4. Set the pulse latency - the minimum required time between one pulse and the next
    5. Set the second pulse window - maximum allowed time between end of latency and start of second pulse
    for more info check out this app note: http://cache.freescale.com/files/sensors/doc/app_note/AN4072.pdf */
-void MMA8451_n0m1::pulseMode(boolean enableX, boolean enableY,
-		boolean enableZ, boolean enableINT2) {
+void MMA8451_n0m1::pulseMode(boolean enableX, boolean enableY, boolean enableZ, boolean enableINT2) {
 
 	boolean error = false;
 	byte statusCheck;
@@ -617,18 +655,18 @@ void MMA8451_n0m1::pulseMode(boolean enableX, boolean enableY,
 	wireWriteDataByte(REG_HP_FILTER_CUTOFF, 0b10000);
 
 	// TODO
-	wireWriteDataByte(REG_PULSE_CFG, 0x3F);  // 1. enable single/double taps on all axes
+	//wireWriteDataByte(REG_PULSE_CFG, 0x3F);  // 1. enable single/double taps on all axes
 	//wireWriteDataByte(REG_PULSE_CFG, 0x15);  // 1. single taps only on all axes
-	// wireWriteDataByte(REG_PULSE_CFG, 0x6A);  // 1. double taps only on all axes
+	wireWriteDataByte(REG_PULSE_CFG, 0x6A);  // 1. double taps only on all axes
 
 	// 2. x thresh at 4g, multiply the value by 0.0625g/LSB to get the threshold
-	wireWriteDataByte(REG_PULSE_THSX, 0x40);
+	wireWriteDataByte(REG_PULSE_THSX, 0x4A);
 
 	// 2. y thresh at 4g, multiply the value by 0.0625g/LSB to get the threshold
-	wireWriteDataByte(REG_PULSE_THSY, 0x40);
+	wireWriteDataByte(REG_PULSE_THSY, 0x4A);
 
 	// 2. z thresh at 5g, multiply the value by 0.0625g/LSB to get the threshold
-	wireWriteDataByte(REG_PULSE_THSZ, 0x40);
+	wireWriteDataByte(REG_PULSE_THSZ, 0x4A);
 
 	// 3. 25ms time limit at 100Hz odr, this is very dependent on data rate, see the app note
 	// = 0.625ms(ODR=100,HighRes) * TMLT
@@ -651,12 +689,10 @@ void MMA8451_n0m1::pulseMode(boolean enableX, boolean enableY,
 	byte intSelect;
 	if (enableINT2) {
 		// INT2
-		intSelect = 0x00;
-		attachInterrupt(INT_PIN2, accelPulseISR);
+		intSelect = 0x0000;
 	} else {
 		// INT1
 		intSelect = 0b1000;
-		attachInterrupt(INT_PIN1, accelPulseISR);
 	}
 	wireReadDataByte(REG_CTRL_REG5, statusCheck);
 	statusCheck |= intSelect;
@@ -694,31 +730,7 @@ void MMA8451_n0m1::regWrite(byte reg, byte val) {
 	wireWriteDataByte(reg, val);
 }
 
-/***********************************************************
- *
- * accelPulseISR
- *
- *
- *
- ***********************************************************/
-void accelPulseISR(nrf_drv_gpiote_pin_t pin, nrf_gpiote_polarity_t polarity_) {
-	if (polarity_ == NRF_GPIOTE_POLARITY_HITOLO) {
-		MMA8451_n0m1::pMMA8451_n0m1->pulseISRFlag = true;
-	}
-}
 
-/***********************************************************
- *
- * accelShakeISR
- *
- *
- *
- ***********************************************************/
-void accelShakeISR(nrf_drv_gpiote_pin_t pin, nrf_gpiote_polarity_t polarity_) {
-	if (polarity_ == NRF_GPIOTE_POLARITY_HITOLO) {
-		MMA8451_n0m1::pMMA8451_n0m1->shakeISRFlag = true;
-	}
-}
 
 /***********************************************************
  *
@@ -961,12 +973,12 @@ bool MMA8451_n0m1::wireWriteDataByte(uint8_t reg, uint8_t val) {
  */
 bool MMA8451_n0m1::wireReadDataByte(uint8_t reg, uint8_t &val) {
 
-	if (i2c_write8(MMA8451_ADDRESS, reg)) {
+	if (!i2c_write8(MMA8451_ADDRESS, reg)) {
 		//return false;
 	}
 
 	// repeated start
-	if (i2c_read8(MMA8451_ADDRESS, &val)) {
+	if (!i2c_read8(MMA8451_ADDRESS, &val)) {
 		return false;
 	}
 
@@ -983,12 +995,12 @@ bool MMA8451_n0m1::wireReadDataByte(uint8_t reg, uint8_t &val) {
  */
 int MMA8451_n0m1::wireReadDataBlock(uint8_t reg, uint8_t *val, unsigned int len) {
 
-	if (i2c_write8(MMA8451_ADDRESS, reg)) {
+	if (!i2c_write8(MMA8451_ADDRESS, reg)) {
 		//return 0;
 	}
 
 	// repeated start
-	if (i2c_read_n(MMA8451_ADDRESS, val, len)) {
+	if (!i2c_read_n(MMA8451_ADDRESS, val, len)) {
 		return 0;
 	}
 

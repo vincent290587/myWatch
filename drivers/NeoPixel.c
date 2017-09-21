@@ -53,6 +53,8 @@
 
 //These defines are timed specific to a series of if statements and will need to be changed
 //to compensate for different writing algorithms than the one in neopixel.c
+
+// nop=62.5ns
 #define NEOPIXEL_SEND_ONE	NRF_GPIO->OUTSET = (1UL << PIN); \
 		__ASM ( \
 				" NOP\n\t" \
@@ -63,16 +65,18 @@
 				" NOP\n\t" \
 				" NOP\n\t" \
 				" NOP\n\t" \
-				" NOP\n\t" \
 		); \
 		NRF_GPIO->OUTCLR = (1UL << PIN); \
+		__ASM ( \
+				" NOP\n\t" \
+		);
 
-#define NEOPIXEL_SEND_ZERO NRF_GPIO->OUTSET = (1UL << PIN); \
-		__ASM (  \
-				" NOP\n\t"  \
-		);  \
+// modif pour avoir le bon ON-time
+#define NEOPIXEL_SEND_ZERO \
+	    NRF_GPIO->OUTSET = (1UL << PIN); \
 		NRF_GPIO->OUTCLR = (1UL << PIN);  \
 		__ASM ( \
+				" NOP\n\t" \
 				" NOP\n\t" \
 				" NOP\n\t" \
 				" NOP\n\t" \
@@ -84,8 +88,7 @@
 		);
 
 
-// FUNCTIONS
-
+////////////       FUNCTIONS
 
 void neopixel_init(neopixel_strip_t *strip, uint8_t pin_num, uint16_t num_leds)
 {
@@ -114,11 +117,18 @@ void neopixel_clear(neopixel_strip_t *strip)
 	neopixel_show(strip);
 }
 
+#include "nrf_nvic.h"
 void neopixel_show(neopixel_strip_t *strip)
 {
 	const uint8_t PIN =  strip->pin_num;
+
+	__disable_irq();
+	//uint8_t is_nested_critical_region=0;
+	//sd_nvic_critical_region_enter(&is_nested_critical_region);
+
 	NRF_GPIO->OUTCLR = (1UL << PIN);
-	nrf_delay_us(50);
+	nrf_delay_us(55);
+
 	for (int i = 0; i < strip->num_leds; i++) {
 
 		for (int j = 0; j < 3; j++) {
@@ -126,28 +136,47 @@ void neopixel_show(neopixel_strip_t *strip)
 			if ((strip->leds[i].grb[j] & 128) > 0)	{NEOPIXEL_SEND_ONE}
 			else	{NEOPIXEL_SEND_ZERO}
 
+//			NEOPIXEL_COMPLETE_CYCLE
+
 			if ((strip->leds[i].grb[j] & 64) > 0)	{NEOPIXEL_SEND_ONE}
 			else	{NEOPIXEL_SEND_ZERO}
+
+//			NEOPIXEL_COMPLETE_CYCLE
 
 			if ((strip->leds[i].grb[j] & 32) > 0)	{NEOPIXEL_SEND_ONE}
 			else	{NEOPIXEL_SEND_ZERO}
 
+//			NEOPIXEL_COMPLETE_CYCLE
+
 			if ((strip->leds[i].grb[j] & 16) > 0)	{NEOPIXEL_SEND_ONE}
 			else	{NEOPIXEL_SEND_ZERO}
+
+//			NEOPIXEL_COMPLETE_CYCLE
 
 			if ((strip->leds[i].grb[j] & 8) > 0)	{NEOPIXEL_SEND_ONE}
 			else	{NEOPIXEL_SEND_ZERO}
 
+//			NEOPIXEL_COMPLETE_CYCLE
+
 			if ((strip->leds[i].grb[j] & 4) > 0)	{NEOPIXEL_SEND_ONE}
 			else	{NEOPIXEL_SEND_ZERO}
+
+//			NEOPIXEL_COMPLETE_CYCLE
 
 			if ((strip->leds[i].grb[j] & 2) > 0)	{NEOPIXEL_SEND_ONE}
 			else	{NEOPIXEL_SEND_ZERO}
 
+//			NEOPIXEL_COMPLETE_CYCLE
+
 			if ((strip->leds[i].grb[j] & 1) > 0)	{NEOPIXEL_SEND_ONE}
 			else	{NEOPIXEL_SEND_ZERO}
+
+//			NEOPIXEL_COMPLETE_CYCLE
 		}
 	}
+
+	__enable_irq();
+	//sd_nvic_critical_region_exit(is_nested_critical_region);
 }
 
 uint8_t neopixel_set_color(neopixel_strip_t *strip, uint16_t index, uint8_t red, uint8_t green, uint8_t blue )

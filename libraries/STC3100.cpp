@@ -99,6 +99,7 @@ bool STC3100::refresh()
 	computeCharge  ();
 	computeCurrent ();
 	computeTemp    ();
+	computeCounter ();
 
 	return true;
 }
@@ -135,13 +136,12 @@ void STC3100::computeCharge()
 {
 
 	uint8_t tl=_stc_data.ChargeLow, th=_stc_data.ChargeHigh;
-	uint32_t t;
-	int val;
+	float val;
 
-	t = th;
-	t <<= 8;
-	val = (t & 0xFF00) | tl;
-	_charge = ((float) val * 6.7 / _r_sens);
+	NRF_LOG_INFO("Charge L=0x%x H=0x%x\r\n", tl, th);
+
+	val = compute2Complement(th, tl);
+	_charge = (val * 6.7 / _r_sens);
 
 }
 
@@ -173,6 +173,12 @@ void STC3100::computeTemp()
 }
 
 
+float STC3100::getCorrectedVoltage(float int_res) {
+
+	float res = _voltage + int_res * _current / 1000.;
+	return res;
+
+}
 
 
 
