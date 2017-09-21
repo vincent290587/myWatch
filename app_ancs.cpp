@@ -67,8 +67,6 @@ using namespace mvc;
 
 #define DISPLAY_MESSAGE_BUTTON_ID      1                                           /**< Button used to request notification attributes. */
 
-#define MESSAGE_BUFFER_SIZE            18                                          /**< Size of buffer holding optional messages in notifications. */
-
 #define SECURITY_REQUEST_DELAY         APP_TIMER_TICKS(1500, APP_TIMER_PRESCALER)  /**< Delay after connection until security request is sent, if necessary (ticks). */
 
 

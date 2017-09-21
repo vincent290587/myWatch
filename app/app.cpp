@@ -16,10 +16,9 @@
 #include "I2C.h"
 #include "SPI.h"
 
-#include "app.h"
 #include "Global.h"
+#include "app.h"
 
-#define LED_EN_PIN                     1
 
 #define RUN_DELAY                      100
 #define APP_DELAY                      APP_TIMER_TICKS(RUN_DELAY, APP_TIMER_PRESCALER) // ticks from ms
@@ -49,7 +48,7 @@ void init_timers_millis() {
 APP::APP() {
 	pApp = this;
 	bigTick = false;
-	state = LOW_POWER;
+	state = DEBUG;
 }
 
 
@@ -61,12 +60,15 @@ void APP::init() {
 	init_timers_millis();
 
 	// light init
-	neopix.setColor(0, 0, 0);
+	neopix.init(24);
 	neopix.clear();
-// TODO remove
-#ifndef NRF51
-	return;
-#endif
+
+	// v_usb pres
+	nrf_gpio_cfg_input(6, NRF_GPIO_PIN_NOPULL);
+	// end of charge
+	nrf_gpio_cfg_input(11, NRF_GPIO_PIN_PULLUP);
+
+
 	////////////////////////////////////////////////////
 
 	// spi init
@@ -77,26 +79,29 @@ void APP::init() {
 	vue.setTK(&timekeeper);
 	vue.begin();
 
-
 	////////////////////////////////////////////////////
 
 	// i2c init
 	i2c_init();
 
+#ifdef NRF52
+	return;
+#endif
+
 	// STC3100 init
-	stc.init();
+	stc.init(40, STC3100_MODE_ULTRAHIGHRES);
 
 	// accelero configuration
 	acc.init();
 
 	// init LDO 2
 	nrf_gpio_cfg_output(LED_EN_PIN);
-	nrf_gpio_pin_clear(LED_EN_PIN);
+	optim.enableLDO();
+	//delay(10);
 
 	// motion sensing init
 	adps.init();
-	adps.disablePower();
-	//adps.enableGestureSensor(true);
+	//adps.enableLightSensor(false);
 
 	// baro init
 	baro.init();
@@ -105,51 +110,66 @@ void APP::init() {
 	veml.init();
 
 	// MAX30102 init
-//	nrf_gpio_pin_set(LED_EN_PIN);
 	spo_hrm.init();
 	spo_hrm.max30102.shutDown();
-//	spo_hrm.start_measurement();
+
+	vue.addNotification(1, "DEBUG", "Init");
 }
 
 
 void APP::run() {
 
-	// functions needed to run continuously:
-    adps.run();
+	// functions needing to run continuously:
+	adps.run();
+
+	if (state == SPORT) {
+		spo_hrm.run();
+	}
+
+	acc.run();
 
 	// run state machine (10Hz)
 	sm_run();
 
 }
 
+// state transitions
 void APP::switchMode(uint8_t new_mode) {
 
-	switch (state) {
-	case LOW_POWER:
-		if (new_mode==SPORT) {
-			nrf_gpio_pin_set(LED_EN_PIN);
-			spo_hrm.start_measurement();
+	if (State(new_mode) == state) return;
 
-			// mode change
-			state = SPORT;
-		}
-		break;
-	case SPORT:
-		if (new_mode==LOW_POWER) {
-			spo_hrm.stop_measurement();
-			spo_hrm.max30102.shutDown();
-			nrf_gpio_pin_clear(LED_EN_PIN);
+	if (State(new_mode) == VERY_LOW_POWER) {
 
-			// mode change
-			state = LOW_POWER;
-		}
-		break;
+		veml.off();
+
+	} else if (state == VERY_LOW_POWER) {
+
+		// on quitte le mode VERY_LOW_POWER
+		veml.on();
+
 	}
 
+	if (State(new_mode) == VERY_LOW_POWER || State(new_mode) == LOW_POWER) {
+
+		if (state == SPORT) {
+
+			spo_hrm.stop_measurement();
+
+		}
+
+	} else if (State(new_mode) == SPORT) {
+		// new mode is SPORT
+		spo_hrm.start_measurement();
+	}
+
+	state = State(new_mode);
 
 }
 
 void APP::run_very_low_power() {
+
+	// run at XHz without interrupts
+	if (nbTicks == 5) acc.update();
 
 }
 
@@ -176,29 +196,24 @@ void APP::run_low_power() {
 
 	}
 
-	// refresh at 3Hz
-	if ((nbTicks%3) == 0) {
+	// run at XHz without interrupts
+	acc.update();
+
+	// refresh at 2Hz
+	if ((nbTicks%5) == 0) {
 		vue.triggerRefresh();
 	}
-
-	// TODO run at 10Hz without interrupts
-	acc.update();
 
 }
 
 void APP::run_sport() {
 
 	// Gather MAX30102 data
-	if ((nbTicks%2) == 1) spo_hrm.run();
+	//if ((nbTicks%2) == 1) spo_hrm.run();
 
 	if (nbTicks == 1) {
 
 		NRF_LOG_ERROR("Power consumption: " NRF_LOG_FLOAT_MARKER "\r\n", NRF_LOG_FLOAT(stc.getCurrent()));
-
-		if (digitalRead(INT_PIN_MAX) == LOW) {
-			NRF_LOG_WARNING("Pin MAX low\r\n");
-			spo_hrm.run();
-		}
 
 	} else if (nbTicks == 5) {
 
@@ -221,9 +236,10 @@ void APP::sm_run() {
 		bigTick = false;
 
 		// tick increase
-		nbTicks++;
 		nbTicks = nbTicks % 10;
 
+		// power optimizer
+		optim.run();
 		// run controller
 		control.run();
 		// run neopixel
@@ -245,6 +261,8 @@ void APP::sm_run() {
 
 		// USER STATE MACHINE
 		switch (state) {
+		default:
+		case DEBUG:
 		case VERY_LOW_POWER:
 			this->run_very_low_power();
 			break;
@@ -259,6 +277,7 @@ void APP::sm_run() {
 		// display
 		vue.run();
 
+		nbTicks++;
 	}
 
 }
