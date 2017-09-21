@@ -12,17 +12,19 @@ include $(PROJ_DIR)/Makefile.files
 
 # Source files common to all targets
 SRC_FILES += \
+  $(PROJ_DIR)/libraries/MAX30102/cmsis_filter.c \
   $(SDK_ROOT)/components/toolchain/gcc/gcc_startup_nrf51.S \
   $(SDK_ROOT)/components/toolchain/system_nrf51.c \
 
 # Include folders common to all targets
 INC_FOLDERS += \
+  $(PROJ_DIR)/pca10028/s130/config \
   $(SDK_ROOT)/components/softdevice/s130/headers \
   $(SDK_ROOT)/components/softdevice/s130/headers/nrf51 \
-  $(PROJ_DIR)/pca10028/s130/config \
 
 # Libraries common to all targets
 LIB_FILES += \
+  $(SDK_ROOT)/external/CMSIS_4_5/CMSIS/Lib/GCC/libarm_cortexM0l_math.a
 
 # C flags common to all targets
 CFLAGS += -DBOARD_PCA10028
@@ -37,7 +39,8 @@ CFLAGS += -DNRF51422
 CFLAGS += -DNRF_SD_BLE_API_VERSION=2
 CFLAGS += -DNRF_DFU_SETTINGS_VERSION=1
 CFLAGS += -DARDUINO=164
-CFLAGS += -DDEBUG
+# CFLAGS += -DDEBUG
+CFLAGS += -DNRF_LOG_ENABLED=1
 CFLAGS += -mcpu=cortex-m0
 CFLAGS += -mthumb -mabi=aapcs
 CFLAGS += -Wall -Ofast

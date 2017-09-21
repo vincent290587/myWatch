@@ -37,9 +37,11 @@ CFLAGS += -DNRF51422
 CFLAGS += -DNRF_SD_BLE_API_VERSION=2
 CFLAGS += -DNRF_DFU_SETTINGS_VERSION=1
 CFLAGS += -DARDUINO=164
+# CFLAGS += -DDEBUG
+CFLAGS += -DNRF_LOG_ENABLED=0
 CFLAGS += -mcpu=cortex-m0
 CFLAGS += -mthumb -mabi=aapcs
-CFLAGS += -Wall -O3
+CFLAGS += -Wall -Ofast
 CFLAGS += -mfloat-abi=soft
 # keep every function in separate section, this allows linker to discard unused ones
 CFLAGS += -ffunction-sections -fdata-sections -fno-strict-aliasing
@@ -68,10 +70,13 @@ LDFLAGS += -Wl,--gc-sections
 LDFLAGS += --specs=nano.specs -lc -lnosys
 
 
-.PHONY: $(TARGETS) default all force clean help flash flash_softdevice dfu
+.PHONY: $(TARGETS) default prod all force clean help flash flash_softdevice dfu
 
 # Default target - first one defined
 default: nrf51422_xxac
+
+prod: CFLAGS += -DNRF_LOG_ENABLED=0
+prod: nrf51422_xxac
 
 # Print all targets that can be built
 help:
@@ -80,6 +85,7 @@ help:
 	
 dfu:
 	nrfutil --verbose pkg generate --hw-version 51 --sd-req 0x87 --application-version 1 --application $(OUTPUT_DIRECTORY)/nrf51422_xxac.hex --key-file $(SDK_ROOT)/vault/priv.pem s130_watch.zip  
+	mv s130_watch.zip ..\..\..\..\..\Dropbox\
 
 TEMPLATE_PATH := $(SDK_ROOT)/components/toolchain/gcc
 

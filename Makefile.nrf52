@@ -49,7 +49,7 @@ CFLAGS += -DNRF52_PAN_20
 CFLAGS += -DNRF52_PAN_55
 CFLAGS += -DS132
 CFLAGS += -DARDUINO=164
-CFLAGS += -DDEBUG
+#CFLAGS += -DDEBUG
 CFLAGS += -mcpu=cortex-m4
 CFLAGS += -mthumb -mabi=aapcs
 CFLAGS += -Ofast
